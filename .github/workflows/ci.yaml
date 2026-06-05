@@ -90,6 +90,7 @@ jobs:
     name: Build & Push Docker Images
     needs: [lint-and-test, resolve-branch]
     runs-on: ubuntu-latest
+    environment: ${{ needs.resolve-branch.outputs.branch }}
 
     steps:
       - name: Checkout repository
@@ -243,6 +244,7 @@ jobs:
     name: Auto Install
     if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
     needs: [update-backend-values, update-frontend-values, resolve-branch]
+    environment: ${{ needs.resolve-branch.outputs.branch }}
     strategy:
       matrix:
         app: [backend, frontend]
@@ -259,6 +261,7 @@ jobs:
     name: Auto Promote
     if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
     needs: [auto-install]
+    environment: ${{ needs.resolve-branch.outputs.branch }}
     strategy:
       matrix:
         app: [backend, frontend]

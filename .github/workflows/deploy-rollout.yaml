@@ -34,6 +34,7 @@ jobs:
   rollout:
     name: ${{ inputs.action == 'install' && 'Install' || inputs.action == 'promote' && 'Promote' || 'Rollback' }} — ${{ inputs.app }}
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
 
     steps:
       - name: Configure AWS credentials

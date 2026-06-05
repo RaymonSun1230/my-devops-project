@@ -36,6 +36,7 @@ on:
 jobs:
   deploy:
     name: ${{ inputs.action }} — ${{ inputs.app }}
+    environment: ${{ inputs.environment }}
     uses: ./.github/workflows/deploy-rollout.yaml
     with:
       action: ${{ inputs.action }}
