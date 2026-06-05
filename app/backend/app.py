@@ -2,7 +2,7 @@ import os
 import csv
 import io
 import boto3
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify
 from botocore.exceptions import ClientError
 
 app = Flask(__name__)

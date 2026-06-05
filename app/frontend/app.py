@@ -13,7 +13,7 @@ def index():
             data = resp.json()
         else:
             data = []
-    except:
+    except Exception:
         data = []
     return render_template('index.html', data=data)
 

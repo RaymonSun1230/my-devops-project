@@ -58,15 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        app: >
-          ${{
-            (github.event_name == 'workflow_dispatch' &&
-              (inputs.deploy_backend && inputs.deploy_frontend && '["backend","frontend"]' ||
-               inputs.deploy_backend && '["backend"]' ||
-               inputs.deploy_frontend && '["frontend"]' ||
-               '[]'))
-            || '["backend","frontend"]'
-          }}
+        app: [backend, frontend]
 
     steps:
       - name: Checkout repository
@@ -253,14 +245,7 @@ jobs:
     needs: [update-backend-values, update-frontend-values, resolve-branch]
     strategy:
       matrix:
-        app: >
-          ${{
-            (github.event_name != 'workflow_dispatch' && '["backend","frontend"]') ||
-            (inputs.deploy_backend && inputs.deploy_frontend && '["backend","frontend"]' ||
-             inputs.deploy_backend && '["backend"]' ||
-             inputs.deploy_frontend && '["frontend"]' ||
-             '[]')
-          }}
+        app: [backend, frontend]
     uses: ./.github/workflows/deploy-rollout.yaml
     with:
       action: install
@@ -276,14 +261,7 @@ jobs:
     needs: [auto-install]
     strategy:
       matrix:
-        app: >
-          ${{
-            (github.event_name != 'workflow_dispatch' && '["backend","frontend"]') ||
-            (inputs.deploy_backend && inputs.deploy_frontend && '["backend","frontend"]' ||
-             inputs.deploy_backend && '["backend"]' ||
-             inputs.deploy_frontend && '["frontend"]' ||
-             '[]')
-          }}
+        app: [backend, frontend]
     uses: ./.github/workflows/deploy-rollout.yaml
     with:
       action: promote
