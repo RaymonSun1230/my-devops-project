@@ -1,13 +1,12 @@
 replicaCount: 1
 image:
   repository: 385551094956.dkr.ecr.us-east-1.amazonaws.com/app-frontend
-  tag: c0988a4-20260605
+  tag: e415c1a-20260605
   pullPolicy: IfNotPresent
 service:
   type: ClusterIP
   port: 7000
   targetPort: 7000
-
 rollout:
   enabled: true
   canaryReplicas: 3
@@ -16,14 +15,13 @@ rollout:
   canarySteps:
     - setWeight: 10
     - pause:
-        duration: 2m 
+        duration: 2m
     - setWeight: 50
     - pause:
-        duration: 2m 
+        duration: 2m
     - setWeight: 100
     - pause:
-        duration: 30s 
-
+        duration: 30s
 ingress:
   enabled: true
   className: "alb"

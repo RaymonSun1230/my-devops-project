@@ -1,19 +1,18 @@
 replicaCount: 1
 image:
   repository: 385551094956.dkr.ecr.us-east-1.amazonaws.com/app-backend
-  tag: c0988a4-20260605
+  tag: e415c1a-20260605
   pullPolicy: IfNotPresent
 service:
   type: ClusterIP
   port: 7001
   targetPort: 7001
   annotations: {}
-
 rollout:
   enabled: true
   autoPromotionEnabled: false
-  promotionDelaySeconds: 120 
-  scaleDownDelaySeconds: 30 
+  promotionDelaySeconds: 120
+  scaleDownDelaySeconds: 30
 env:
   - name: S3_BUCKET
     value: ""
