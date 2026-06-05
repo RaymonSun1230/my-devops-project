@@ -137,6 +137,8 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_backend }}
     needs: [build-and-push, resolve-branch]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -191,6 +193,8 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_frontend }}
     needs: [build-and-push, resolve-branch]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
