@@ -1,0 +1,41 @@
+replicaCount: 1
+
+image:
+  repository: 385551094956.dkr.ecr.us-east-1.amazonaws.com/app-frontend
+  tag: 20260605-102011
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 7000
+  targetPort: 7000
+
+ingress:
+  enabled: true
+  className: "alb"
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    
+    alb.ingress.kubernetes.io/subnets: "subnet-xxx,subnet-yyy"
+  hosts:
+    - paths:
+        - path: /
+          pathType: Prefix
+
+env:
+  - name: BACKEND_URL
+    value: "http://backend:7001"
+
+resources:
+  requests:
+    cpu: 128m
+    memory: 128Mi
+  limits:
+    cpu: 256m
+    memory: 256Mi

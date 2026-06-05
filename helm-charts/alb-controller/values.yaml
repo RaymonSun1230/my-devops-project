@@ -1,0 +1,22 @@
+aws-load-balancer-controller:
+  clusterName: "demo-app-dev"
+
+  serviceAccount:
+    name: "aws-load-balancer-controller"
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::385551094956:role/lb-controller-dev-20260604152409072800000001"
+
+  region: "us-east-1"
+  vpcId: "vpc-037326f9c83dc7c68"
+
+  enableShield: false
+  enableWaf: false
+  enableWafv2: false
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi

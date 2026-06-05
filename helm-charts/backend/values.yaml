@@ -1,0 +1,27 @@
+replicaCount: 1
+
+image:
+  repository: 385551094956.dkr.ecr.us-east-1.amazonaws.com/app-backend
+  tag: 20260605-101857
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 7001
+  targetPort: 7001
+
+env:
+  - name: S3_BUCKET
+    value: ""
+  - name: S3_KEY
+    value: "data.csv"
+  - name: AWS_REGION
+    value: "us-east-1"
+
+resources:
+  requests:
+    cpu: 128m
+    memory: 128Mi
+  limits:
+    cpu: 256m
+    memory: 256Mi
