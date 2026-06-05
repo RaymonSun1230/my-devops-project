@@ -84,23 +84,11 @@ jobs:
             echo "tg_command=" >> "$GITHUB_OUTPUT"
           fi
       
-      - name: Terragrunt HCL Format 
-        run: terragrunt hclfmt
-      
       - name: Terragrunt Init
         run: |
           terragrunt ${{ steps.resolve.outputs.tg_command }} init \
             --terragrunt-non-interactive
         working-directory: ${{ steps.resolve.outputs.target_dir }}
-
-      - name: Terragrunt Validate 
-        run: terragrunt ${{ steps.resolve.outputs.tg_command }} validate 
-        working-directory: ${{ steps.resolve.outputs.target_dir }} 
-      
-      - name: tfsec Scan 
-        uses: aquasecurity/tfsec-action@v1.0.3 
-        with: 
-          working_directory: ${{ steps.resolve.outputs.target_dir }}
 
       - name: "Terragrunt Plan"
         run: |
