@@ -240,36 +240,58 @@ jobs:
           labels: automated-deploy
           delete-branch: true
 
-  auto-install:
-    name: Auto Install
+  auto-install-backend:
+    name: Auto Install Backend
     if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
-    needs: [update-backend-values, update-frontend-values, resolve-branch]
+    needs: [update-backend-values, resolve-branch]
     environment: ${{ needs.resolve-branch.outputs.branch }}
-    strategy:
-      matrix:
-        app: [backend, frontend]
     uses: ./.github/workflows/deploy-rollout.yaml
     with:
       action: install
       environment: ${{ needs.resolve-branch.outputs.branch }}
-      app: ${{ matrix.app }}
+      app: backend
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-  auto-promote:
-    name: Auto Promote
+  auto-install-frontend:
+    name: Auto Install Frontend
     if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
-    needs: [auto-install]
+    needs: [update-frontend-values, resolve-branch]
     environment: ${{ needs.resolve-branch.outputs.branch }}
-    strategy:
-      matrix:
-        app: [backend, frontend]
+    uses: ./.github/workflows/deploy-rollout.yaml
+    with:
+      action: install
+      environment: ${{ needs.resolve-branch.outputs.branch }}
+      app: frontend
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  auto-promote-backend:
+    name: Auto Promote Backend
+    if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
+    needs: [auto-install-backend]
+    environment: ${{ needs.resolve-branch.outputs.branch }}
     uses: ./.github/workflows/deploy-rollout.yaml
     with:
       action: promote
       environment: ${{ needs.resolve-branch.outputs.branch }}
-      app: ${{ matrix.app }}
+      app: backend
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  auto-promote-frontend:
+    name: Auto Promote Frontend
+    if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
+    needs: [auto-install-frontend]
+    environment: ${{ needs.resolve-branch.outputs.branch }}
+    uses: ./.github/workflows/deploy-rollout.yaml
+    with:
+      action: promote
+      environment: ${{ needs.resolve-branch.outputs.branch }}
+      app: frontend
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
