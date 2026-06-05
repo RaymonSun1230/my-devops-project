@@ -1,0 +1,144 @@
+name: Terraform Apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target Environment"
+        type: choice
+        options:
+          - dev
+          - staging
+          - test
+          - perf
+          - production
+        default: dev
+      aws_region:
+        description: "AWS Region"
+        type: choice
+        options:
+          - us-east-1
+          - us-east-2
+        default: us-east-1
+      resources:
+        description: "Terraform Modules to Target"
+        type: choice
+        options:
+          - all
+          - vpc
+          - eks
+          - iam
+        default: all
+
+permissions: 
+  id-token: write 
+  contents: read
+
+concurrency: 
+  group: terraform-${{ inputs.environment }}-${{ inputs.aws_region }} 
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
+
+jobs:
+  plan:
+    name: "Terraform Plan — ${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}"
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      target_dir: ${{ steps.resolve.outputs.target_dir }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ inputs.aws_region }}
+      
+      - name: Setup Terraform Plugin Cache 
+        run: mkdir -p ~/.terraform.d/plugin-cache
+
+      - name: Cache Terraform Plugins 
+        uses: actions/cache@v4 
+        with: 
+          path: ~/.terraform.d/plugin-cache 
+          key: terraform-${{ runner.os }}-${{ hashFiles('**/.terraform.lock.hcl') }}
+
+      - name: Setup Terragrunt & Terraform
+        uses: gruntwork-io/terragrunt-action@v3
+
+      - name: Resolve target directory
+        id: resolve
+        run: |
+          if [[ "${{ inputs.resources }}" == "all" ]]; then
+            echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}" >> "$GITHUB_OUTPUT"
+            echo "tg_command=run --all" >> "$GITHUB_OUTPUT"
+          else
+            echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}" >> "$GITHUB_OUTPUT"
+            echo "tg_command=" >> "$GITHUB_OUTPUT"
+          fi
+      
+      - name: Terragrunt Init
+        run: |
+          terragrunt ${{ steps.resolve.outputs.tg_command }} init \
+            --terragrunt-non-interactive
+        working-directory: ${{ steps.resolve.outputs.target_dir }}
+
+      - name: "Terragrunt Plan"
+        run: |
+          terragrunt ${{ steps.resolve.outputs.tg_command }} plan \
+            --terragrunt-non-interactive \
+            -out=tfplan
+        working-directory: ${{ steps.resolve.outputs.target_dir }}
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ github.run_id }}
+          path: ${{ steps.resolve.outputs.target_dir }}
+          include-hidden-files: true
+
+  apply:
+    name: "Terraform Apply — ${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}"
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}-required-reviewers
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Setup Terraform Plugin Cache
+        run: mkdir -p ~/.terraform.d/plugin-cache
+
+      - name: Cache Terraform Plugins
+        uses: actions/cache@v4
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: terraform-${{ runner.os }}-${{ hashFiles('**/.terraform.lock.hcl') }}
+
+      - name: Setup Terragrunt
+        uses: gruntwork-io/terragrunt-action@v3
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ github.run_id }}
+          path: ${{ needs.plan.outputs.target_dir }}
+
+      - name: Terraform Apply
+        run: |
+          terragrunt apply --terragrunt-non-interactive tfplan-${{ github.run_id }}
+        working-directory: ${{ needs.plan.outputs.target_dir }}

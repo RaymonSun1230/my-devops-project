@@ -1,4 +1,5 @@
-replicaCount: 1
+rollout:
+  autoPromotionEnabled: true
 
 env:
   - name: S3_BUCKET

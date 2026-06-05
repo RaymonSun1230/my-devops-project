@@ -1,4 +1,10 @@
-replicaCount: 1
+rollout:
+  canarySteps:
+    - setWeight: 10
+    - pause: {duration: 0}
+    - setWeight: 50
+    - pause: {duration: 0}
+    - setWeight: 100
 
 ingress:
   enabled: true
