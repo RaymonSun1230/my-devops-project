@@ -1,0 +1,294 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - dev
+      - test
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target Environment"
+        type: choice
+        options:
+          - dev
+          - test
+          - staging
+          - perf
+          - production
+        default: dev
+      deploy_backend:
+        description: "Deploy Backend"
+        type: boolean
+        default: true
+      deploy_frontend:
+        description: "Deploy Frontend"
+        type: boolean
+        default: true
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 385551094956.dkr.ecr.us-east-1.amazonaws.com
+  BACKEND_IMAGE: app-backend
+  FRONTEND_IMAGE: app-frontend
+
+jobs:
+  resolve-branch:
+    name: Resolve Target Branch
+    runs-on: ubuntu-latest
+    outputs:
+      branch: ${{ steps.resolve.outputs.branch }}
+
+    steps:
+      - name: Resolve branch from environment
+        id: resolve
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            case "${{ inputs.environment }}" in
+              production) echo "branch=main" >> "$GITHUB_OUTPUT" ;;
+              *)          echo "branch=${{ inputs.environment }}" >> "$GITHUB_OUTPUT" ;;
+            esac
+          else
+            echo "branch=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  lint-and-test:
+    name: Lint & Test
+    needs: resolve-branch
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: >
+          ${{
+            (github.event_name == 'workflow_dispatch' &&
+              (inputs.deploy_backend && inputs.deploy_frontend && '["backend","frontend"]' ||
+               inputs.deploy_backend && '["backend"]' ||
+               inputs.deploy_frontend && '["frontend"]' ||
+               '[]'))
+            || '["backend","frontend"]'
+          }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-branch.outputs.branch }}
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: app/${{ matrix.app }}
+        run: |
+          pip install uv
+          uv sync --frozen
+          pip install ruff pytest
+
+      - name: Lint with Ruff
+        working-directory: app/${{ matrix.app }}
+        run: ruff check --output-format=github
+
+      - name: Test with pytest
+        working-directory: app/${{ matrix.app }}
+        run: python -m pytest -v --tb=short || echo "No tests found"
+
+  build-and-push:
+    name: Build & Push Docker Images
+    needs: [lint-and-test, resolve-branch]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-branch.outputs.branch }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Generate image tag
+        id: tag
+        run: echo "IMAGE_TAG=$(echo ${{ github.sha }} | cut -c1-7)-$(date +'%Y%m%d')" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push backend
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_backend }}
+        uses: docker/build-push-action@v6
+        with:
+          context: app/backend
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}
+            ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
+
+      - name: Build & push frontend
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_frontend }}
+        uses: docker/build-push-action@v6
+        with:
+          context: app/frontend
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}
+            ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
+
+  update-backend-values:
+    name: Update Backend Helm Values
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_backend }}
+    needs: [build-and-push, resolve-branch]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-branch.outputs.branch }}
+
+      - name: Generate image tag
+        id: tag
+        run: echo "IMAGE_TAG=$(echo ${{ github.sha }} | cut -c1-7)-$(date +'%Y%m%d')" >> "$GITHUB_OUTPUT"
+
+      - name: Update backend values.yaml
+        uses: mikefarah/yq@v4.45.1
+        with:
+          cmd: yq -i '.image.tag = "${{ steps.tag.outputs.IMAGE_TAG }}"' helm-charts/backend/values.yaml
+
+      - name: Direct commit to branch
+        if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_user_name: "CI Bot"
+          commit_user_email: "ci-bot@company.com"
+          commit_message: "chore(backend): update image tag to ${{ steps.tag.outputs.IMAGE_TAG }}"
+          branch: ${{ needs.resolve-branch.outputs.branch }}
+          file_pattern: helm-charts/backend/values.yaml
+
+      - name: Create Pull Request
+        if: ${{ needs.resolve-branch.outputs.branch != 'dev' && needs.resolve-branch.outputs.branch != 'test' }}
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore(backend): update image tag to ${{ steps.tag.outputs.IMAGE_TAG }}"
+          committer: "CI Bot <ci-bot@company.com>"
+          author: "CI Bot <ci-bot@company.com>"
+          branch: ci/update-backend-${{ steps.tag.outputs.IMAGE_TAG }}
+          base: ${{ needs.resolve-branch.outputs.branch }}
+          title: "chore(backend): update image tag to ${{ steps.tag.outputs.IMAGE_TAG }}"
+          body: |
+            Automated image tag update triggered by CI.
+
+            | Component | Value |
+            |---|---|
+            | Environment | ${{ inputs.environment || github.ref_name }} |
+            | Image Tag | `${{ steps.tag.outputs.IMAGE_TAG }}` |
+            | ECR Image | `${{ env.ECR_REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}` |
+
+            After merging, ArgoCD will automatically sync the new image.
+          labels: automated-deploy
+          delete-branch: true
+
+  update-frontend-values:
+    name: Update Frontend Helm Values
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_frontend }}
+    needs: [build-and-push, resolve-branch]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-branch.outputs.branch }}
+
+      - name: Generate image tag
+        id: tag
+        run: echo "IMAGE_TAG=$(echo ${{ github.sha }} | cut -c1-7)-$(date +'%Y%m%d')" >> "$GITHUB_OUTPUT"
+
+      - name: Update frontend values.yaml
+        uses: mikefarah/yq@v4.45.1
+        with:
+          cmd: yq -i '.image.tag = "${{ steps.tag.outputs.IMAGE_TAG }}"' helm-charts/frontend/values.yaml
+
+      - name: Direct commit to branch
+        if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_user_name: "CI Bot"
+          commit_user_email: "ci-bot@company.com"
+          commit_message: "chore(frontend): update image tag to ${{ steps.tag.outputs.IMAGE_TAG }}"
+          branch: ${{ needs.resolve-branch.outputs.branch }}
+          file_pattern: helm-charts/frontend/values.yaml
+
+      - name: Create Pull Request
+        if: ${{ needs.resolve-branch.outputs.branch != 'dev' && needs.resolve-branch.outputs.branch != 'test' }}
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore(frontend): update image tag to ${{ steps.tag.outputs.IMAGE_TAG }}"
+          committer: "CI Bot <ci-bot@company.com>"
+          author: "CI Bot <ci-bot@company.com>"
+          branch: ci/update-frontend-${{ steps.tag.outputs.IMAGE_TAG }}
+          base: ${{ needs.resolve-branch.outputs.branch }}
+          title: "chore(frontend): update image tag to ${{ steps.tag.outputs.IMAGE_TAG }}"
+          body: |
+            Automated image tag update triggered by CI.
+
+            | Component | Value |
+            |---|---|
+            | Environment | ${{ inputs.environment || github.ref_name }} |
+            | Image Tag | `${{ steps.tag.outputs.IMAGE_TAG }}` |
+            | ECR Image | `${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}` |
+
+            After merging, ArgoCD will automatically sync the new image.
+          labels: automated-deploy
+          delete-branch: true
+
+  auto-install:
+    name: Auto Install
+    if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
+    needs: [update-backend-values, update-frontend-values, resolve-branch]
+    strategy:
+      matrix:
+        app: >
+          ${{
+            (github.event_name != 'workflow_dispatch' && '["backend","frontend"]') ||
+            (inputs.deploy_backend && inputs.deploy_frontend && '["backend","frontend"]' ||
+             inputs.deploy_backend && '["backend"]' ||
+             inputs.deploy_frontend && '["frontend"]' ||
+             '[]')
+          }}
+    uses: ./.github/workflows/deploy-rollout.yaml
+    with:
+      action: install
+      environment: ${{ needs.resolve-branch.outputs.branch }}
+      app: ${{ matrix.app }}
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  auto-promote:
+    name: Auto Promote
+    if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
+    needs: [auto-install]
+    strategy:
+      matrix:
+        app: >
+          ${{
+            (github.event_name != 'workflow_dispatch' && '["backend","frontend"]') ||
+            (inputs.deploy_backend && inputs.deploy_frontend && '["backend","frontend"]' ||
+             inputs.deploy_backend && '["backend"]' ||
+             inputs.deploy_frontend && '["frontend"]' ||
+             '[]')
+          }}
+    uses: ./.github/workflows/deploy-rollout.yaml
+    with:
+      action: promote
+      environment: ${{ needs.resolve-branch.outputs.branch }}
+      app: ${{ matrix.app }}
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

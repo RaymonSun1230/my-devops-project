@@ -1,9 +1,12 @@
+{{- if .Values.rollout.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "backend.fullname" . }}{{ if .Values.rollout.enabled }}-active{{ end }}
+  name: {{ include "backend.fullname" . }}-preview
   labels:
     {{- include "backend.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.service.annotations | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -13,3 +16,4 @@ spec:
       name: http
   selector:
     {{- include "backend.selectorLabels" . | nindent 4 }}
+{{- end }}

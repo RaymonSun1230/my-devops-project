@@ -1,0 +1,53 @@
+# ============================================================
+# CD Pipeline — Install / Promote / Rollback
+# ============================================================
+# 通过下拉菜单选择操作，实际逻辑委托给 deploy-rollout 复用工作流。
+# ============================================================
+
+name: CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action"
+        type: choice
+        options:
+          - install
+          - promote
+          - rollback
+        default: install
+      environment:
+        description: "Target Environment"
+        type: choice
+        options:
+          - dev
+          - test
+          - staging
+          - perf
+          - production
+        default: dev
+      app:
+        description: "Application"
+        type: choice
+        options:
+          - backend
+          - frontend
+        default: backend
+      full_promote:
+        description: "Full Promote (Canary only — skip to 100%)"
+        type: boolean
+        default: false
+
+jobs:
+  deploy:
+    name: ${{ inputs.action }} — ${{ inputs.app }}
+    uses: ./.github/workflows/deploy-rollout.yaml
+    with:
+      action: ${{ inputs.action }}
+      environment: ${{ inputs.environment }}
+      app: ${{ inputs.app }}
+      full_promote: ${{ inputs.full_promote }}
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

@@ -10,6 +10,27 @@ service:
   port: 7000
   targetPort: 7000
 
+# Argo Rollout — Canary 部署策略
+rollout:
+  enabled: true
+  canaryReplicas: 3              # Canary 期间的总副本数
+  canaryMaxSurge: "25%"
+  canaryMaxUnavailable: 0
+  canarySteps:
+    - setWeight: 10
+    - pause:
+        duration: 2m             # 10% 流量观察 2 分钟
+    - setWeight: 50
+    - pause:
+        duration: 2m             # 50% 流量观察 2 分钟
+    - setWeight: 100
+    - pause:
+        duration: 30s            # 100% 后短暂稳定再 complete
+  # trafficRouting:              # 可选: ALB / SMI / Istio 流量路由
+  #   alb:
+  #     ingress: frontend-ingress
+  #     servicePort: 80
+
 ingress:
   enabled: true
   className: "alb"
