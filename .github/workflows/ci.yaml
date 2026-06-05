@@ -200,7 +200,6 @@ jobs:
     name: Auto Install Backend
     if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
     needs: [update-values, resolve-branch]
-    environment: ${{ needs.resolve-branch.outputs.branch }}
     uses: ./.github/workflows/deploy-rollout.yaml
     with:
       action: install
@@ -212,7 +211,6 @@ jobs:
     name: Auto Install Frontend
     if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
     needs: [update-values, resolve-branch]
-    environment: ${{ needs.resolve-branch.outputs.branch }}
     uses: ./.github/workflows/deploy-rollout.yaml
     with:
       action: install
@@ -224,7 +222,6 @@ jobs:
     name: Auto Promote Backend
     if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
     needs: [auto-install-backend]
-    environment: ${{ needs.resolve-branch.outputs.branch }}
     uses: ./.github/workflows/deploy-rollout.yaml
     with:
       action: promote
@@ -236,7 +233,6 @@ jobs:
     name: Auto Promote Frontend
     if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
     needs: [auto-install-frontend]
-    environment: ${{ needs.resolve-branch.outputs.branch }}
     uses: ./.github/workflows/deploy-rollout.yaml
     with:
       action: promote
