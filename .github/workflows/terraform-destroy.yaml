@@ -1,4 +1,4 @@
-name: Terraform Apply
+name: Terraform Destroy
 
 on:
   workflow_dispatch:
@@ -35,7 +35,7 @@ permissions:
   contents: read
 
 concurrency: 
-  group: terraform-${{ inputs.environment }}-${{ inputs.aws_region }} 
+  group: terraform-destroy-${{ inputs.environment }}-${{ inputs.aws_region }} 
   cancel-in-progress: false
 
 env:
@@ -45,7 +45,7 @@ env:
 
 jobs:
   plan:
-    name: "Terraform Plan — ${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}"
+    name: "Terraform Plan (Destroy) — ${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}"
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
@@ -60,14 +60,14 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
           aws-region: ${{ inputs.aws_region }}
-      
-      - name: Setup Terraform Plugin Cache 
+
+      - name: Setup Terraform Plugin Cache
         run: mkdir -p ~/.terraform.d/plugin-cache
 
-      - name: Cache Terraform Plugins 
-        uses: actions/cache@v4 
-        with: 
-          path: ~/.terraform.d/plugin-cache 
+      - name: Cache Terraform Plugins
+        uses: actions/cache@v4
+        with:
+          path: ~/.terraform.d/plugin-cache
           key: terraform-${{ runner.os }}-${{ hashFiles('**/.terraform.lock.hcl') }}
 
       - name: Setup Terragrunt & Terraform
@@ -83,45 +83,34 @@ jobs:
             echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}" >> "$GITHUB_OUTPUT"
             echo "tg_command=" >> "$GITHUB_OUTPUT"
           fi
-      
-      - name: Terragrunt HCL Format 
-        run: terragrunt hclfmt
-      
+
       - name: Terragrunt Init
         run: |
           terragrunt ${{ steps.resolve.outputs.tg_command }} init \
             --terragrunt-non-interactive
         working-directory: ${{ steps.resolve.outputs.target_dir }}
 
-      - name: Terragrunt Validate 
-        run: terragrunt ${{ steps.resolve.outputs.tg_command }} validate 
-        working-directory: ${{ steps.resolve.outputs.target_dir }} 
-      
-      - name: tfsec Scan 
-        uses: aquasecurity/tfsec-action@v1.0.3 
-        with: 
-          working_directory: ${{ steps.resolve.outputs.target_dir }}
-
-      - name: "Terragrunt Plan"
+      - name: "Terragrunt Plan (Destroy)"
         run: |
           terragrunt ${{ steps.resolve.outputs.tg_command }} plan \
             --terragrunt-non-interactive \
+            -destroy \
             -out=tfplan
         working-directory: ${{ steps.resolve.outputs.target_dir }}
 
       - name: Upload Plan Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-${{ github.run_id }}
+          name: tfplan-destroy-${{ github.run_id }}
           path: ${{ steps.resolve.outputs.target_dir }}
           include-hidden-files: true
 
-  apply:
-    name: "Terraform Apply — ${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}"
+  destroy:
+    name: "Terraform Destroy — ${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}"
     needs: plan
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}-required-reviewers
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -147,10 +136,10 @@ jobs:
       - name: Download Plan Artifact
         uses: actions/download-artifact@v4
         with:
-          name: tfplan-${{ github.run_id }}
+          name: tfplan-destroy-${{ github.run_id }}
           path: ${{ needs.plan.outputs.target_dir }}
 
-      - name: Terraform Apply
+      - name: Terraform Destroy
         run: |
-          terragrunt apply --terragrunt-non-interactive tfplan-${{ github.run_id }}
+          terragrunt destroy --terragrunt-non-interactive tfplan-${{ github.run_id }}
         working-directory: ${{ needs.plan.outputs.target_dir }}
