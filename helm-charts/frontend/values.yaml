@@ -1,7 +1,7 @@
 replicaCount: 1
 image:
   repository: 385551094956.dkr.ecr.us-east-1.amazonaws.com/app-frontend
-  tag: bfedb6e-20260605
+  tag: 059a604-20260605
   pullPolicy: IfNotPresent
 service:
   type: ClusterIP
