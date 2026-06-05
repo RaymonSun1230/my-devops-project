@@ -25,14 +25,17 @@ inputs = {
   create_security_group      = true
   create_node_security_group = true
 
+  endpoint_public_access  = true
+  endpoint_private_access = true
+
   enable_irsa = true
 
   eks_managed_node_groups = {
     group = {
       name         = "demo-app-ng"
-      desired_size = 1
-      max_size     = 2
-      min_size     = 1
+      desired_size = 2
+      max_size     = 3
+      min_size     = 2
 
       capacity_type  = "ON_DEMAND"
       instance_types = ["t4g.small"]

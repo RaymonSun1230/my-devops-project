@@ -3,8 +3,8 @@ include {
 }
 
 include "envcommon" {
-  path           = "${dirname(find_in_parent_folders("root.hcl"))}/_envcommon/eks.hcl"
-  expose         = true
+  path   = "${dirname(find_in_parent_folders("root.hcl"))}/_envcommon/eks.hcl"
+  expose = true
 }
 
 dependency "vpc" {
