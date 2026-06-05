@@ -1,21 +1,30 @@
-{{- if not .Values.rollout.enabled }}
-apiVersion: apps/v1
-kind: Deployment
+{{- if .Values.rollout.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
 metadata:
-  name: {{ include "frontend.fullname" . }}
+  name: {{ include "backend.fullname" . }}
   labels:
-    {{- include "frontend.labels" . | nindent 4 }}
+    {{- include "backend.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  strategy:
+    blueGreen:
+      activeService: {{ include "backend.fullname" . }}-active
+      previewService: {{ include "backend.fullname" . }}-preview
+      autoPromotionEnabled: {{ .Values.rollout.autoPromotionEnabled }}
+      {{- if .Values.rollout.promotionDelaySeconds }}
+      autoPromotionSeconds: {{ .Values.rollout.promotionDelaySeconds }}
+      {{- end }}
+      scaleDownDelaySeconds: {{ .Values.rollout.scaleDownDelaySeconds | default 30 }}
   selector:
     matchLabels:
-      {{- include "frontend.selectorLabels" . | nindent 6 }}
+      {{- include "backend.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "frontend.selectorLabels" . | nindent 8 }}
+        {{- include "backend.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "frontend.fullname" . }}
+      serviceAccountName: {{ include "backend.fullname" . }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -29,13 +38,13 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
           livenessProbe:
             httpGet:
-              path: /
+              path: /api/data
               port: {{ .Values.service.targetPort }}
             initialDelaySeconds: 10
             periodSeconds: 15
           readinessProbe:
             httpGet:
-              path: /
+              path: /api/data
               port: {{ .Values.service.targetPort }}
             initialDelaySeconds: 5
             periodSeconds: 10

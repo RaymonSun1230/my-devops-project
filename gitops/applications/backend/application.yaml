@@ -8,6 +8,15 @@ spec:
     - list:
         elements:
           - env: dev
+            branch: dev
+          - env: test
+            branch: test
+          - env: perf
+            branch: perf
+          - env: staging
+            branch: staging
+          - env: production
+            branch: main
 
   template:
     metadata:
@@ -18,7 +27,7 @@ spec:
 
       source:
         repoURL: https://github.com/RaymonSun1230/my-devops-project.git
-        targetRevision: main
+        targetRevision: "{{ branch }}"
         path: helm-charts/backend
         helm:
           valueFiles:

@@ -1,12 +1,22 @@
-{{- if not .Values.rollout.enabled }}
-apiVersion: apps/v1
-kind: Deployment
+{{- if .Values.rollout.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
 metadata:
   name: {{ include "frontend.fullname" . }}
   labels:
     {{- include "frontend.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.rollout.canaryReplicas | default .Values.replicaCount }}
+  strategy:
+    canary:
+      maxSurge: {{ .Values.rollout.canaryMaxSurge | default "25%" }}
+      maxUnavailable: {{ .Values.rollout.canaryMaxUnavailable | default 0 }}
+      steps:
+        {{- toYaml .Values.rollout.canarySteps | nindent 8 }}
+      {{- if .Values.rollout.trafficRouting }}
+      trafficRouting:
+        {{- toYaml .Values.rollout.trafficRouting | nindent 8 }}
+      {{- end }}
   selector:
     matchLabels:
       {{- include "frontend.selectorLabels" . | nindent 6 }}
