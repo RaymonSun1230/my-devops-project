@@ -1,23 +1,19 @@
 replicaCount: 1
-
 image:
   repository: 385551094956.dkr.ecr.us-east-1.amazonaws.com/app-backend
-  tag: 20260605-101857
+  tag: c0988a4-20260605
   pullPolicy: IfNotPresent
-
 service:
   type: ClusterIP
   port: 7001
   targetPort: 7001
   annotations: {}
-
 # Argo Rollout — Blue-Green 部署策略
 rollout:
   enabled: true
-  autoPromotionEnabled: false    # false = 需要手动 promote
-  promotionDelaySeconds: 120     # 自动 promote 前的等待秒数
-  scaleDownDelaySeconds: 30      # 旧 ReplicaSet 缩容延迟
-
+  autoPromotionEnabled: false # false = 需要手动 promote
+  promotionDelaySeconds: 120 # 自动 promote 前的等待秒数
+  scaleDownDelaySeconds: 30 # 旧 ReplicaSet 缩容延迟
 env:
   - name: S3_BUCKET
     value: ""
@@ -25,7 +21,6 @@ env:
     value: "data.csv"
   - name: AWS_REGION
     value: "us-east-1"
-
 resources:
   requests:
     cpu: 128m
