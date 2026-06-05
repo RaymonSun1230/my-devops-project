@@ -8,12 +8,12 @@ service:
   port: 7001
   targetPort: 7001
   annotations: {}
-# Argo Rollout — Blue-Green 部署策略
+
 rollout:
   enabled: true
-  autoPromotionEnabled: false # false = 需要手动 promote
-  promotionDelaySeconds: 120 # 自动 promote 前的等待秒数
-  scaleDownDelaySeconds: 30 # 旧 ReplicaSet 缩容延迟
+  autoPromotionEnabled: false
+  promotionDelaySeconds: 120 
+  scaleDownDelaySeconds: 30 
 env:
   - name: S3_BUCKET
     value: ""
