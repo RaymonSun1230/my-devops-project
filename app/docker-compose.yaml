@@ -1,0 +1,47 @@
+services:
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    networks:
+      - app-network
+
+  backend:
+    build: ./backend
+    ports:
+      - "7001:7001"
+    environment:
+      - S3_BUCKET=demo-bucket
+      - S3_KEY=data.csv
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - AWS_ENDPOINT_URL=http://minio:9000
+    depends_on:
+      - minio
+    networks:
+      - app-network
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:7000"
+    environment:
+      - BACKEND_URL=http://backend:7001
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+volumes:
+  minio-data:
+
+networks:
+  app-network:
