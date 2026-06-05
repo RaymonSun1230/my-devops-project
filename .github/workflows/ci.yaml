@@ -244,54 +244,42 @@ jobs:
     name: Auto Install Backend
     if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
     needs: [update-backend-values, resolve-branch]
-    environment: ${{ needs.resolve-branch.outputs.branch }}
     uses: ./.github/workflows/deploy-rollout.yaml
     with:
       action: install
       environment: ${{ needs.resolve-branch.outputs.branch }}
       app: backend
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    secrets: inherit
 
   auto-install-frontend:
     name: Auto Install Frontend
     if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
     needs: [update-frontend-values, resolve-branch]
-    environment: ${{ needs.resolve-branch.outputs.branch }}
     uses: ./.github/workflows/deploy-rollout.yaml
     with:
       action: install
       environment: ${{ needs.resolve-branch.outputs.branch }}
       app: frontend
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    secrets: inherit
 
   auto-promote-backend:
     name: Auto Promote Backend
     if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
     needs: [auto-install-backend]
-    environment: ${{ needs.resolve-branch.outputs.branch }}
     uses: ./.github/workflows/deploy-rollout.yaml
     with:
       action: promote
       environment: ${{ needs.resolve-branch.outputs.branch }}
       app: backend
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    secrets: inherit
 
   auto-promote-frontend:
     name: Auto Promote Frontend
     if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
     needs: [auto-install-frontend]
-    environment: ${{ needs.resolve-branch.outputs.branch }}
     uses: ./.github/workflows/deploy-rollout.yaml
     with:
       action: promote
       environment: ${{ needs.resolve-branch.outputs.branch }}
       app: frontend
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    secrets: inherit
