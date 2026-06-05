@@ -2,11 +2,7 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y curl
-
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-
-ENV PATH="/root/.local/bin:$PATH"
+RUN pip install --no-cache-dir uv
 
 COPY pyproject.toml uv.lock .
 RUN uv sync --frozen --no-dev
