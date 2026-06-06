@@ -50,6 +50,7 @@ jobs:
     environment: ${{ inputs.environment }}
     outputs:
       target_dir: ${{ steps.resolve.outputs.target_dir }}
+      tg_command: ${{ steps.resolve.outputs.tg_command }}
 
     steps:
       - name: Checkout repository
@@ -142,5 +143,7 @@ jobs:
 
       - name: Terraform Destroy
         run: |
-          terragrunt destroy --non-interactive tfplan-${{ github.run_id }}
+          terragrunt ${{ needs.plan.outputs.tg_command }} destroy \
+            --non-interactive \
+            tfplan-${{ github.run_id }}
         working-directory: ${{ needs.plan.outputs.target_dir }}
