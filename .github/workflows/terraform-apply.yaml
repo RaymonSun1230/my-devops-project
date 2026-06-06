@@ -153,11 +153,10 @@ jobs:
 
       - name: Setup Terragrunt
         uses: gruntwork-io/terragrunt-action@v3
-
+      
       - name: Resolve target directory
         id: resolve
         run: |
-          PLAN_FILE="${GITHUB_WORKSPACE}/tfplan-${{ github.run_id }}"
           if [[ "${{ inputs.resources }}" == "all" ]]; then
             echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}" >> "$GITHUB_OUTPUT"
             echo "tg_command=run --all" >> "$GITHUB_OUTPUT"
@@ -165,7 +164,7 @@ jobs:
           else
             echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}" >> "$GITHUB_OUTPUT"
             echo "tg_command=" >> "$GITHUB_OUTPUT"
-            echo "action=apply $PLAN_FILE" >> "$GITHUB_OUTPUT"
+            echo "action=apply tfplan-destroy-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Download Plan Artifact
