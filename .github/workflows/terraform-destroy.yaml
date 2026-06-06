@@ -147,7 +147,7 @@ jobs:
           else
             echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}" >> "$GITHUB_OUTPUT"
             echo "tg_command=" >> "$GITHUB_OUTPUT"
-            echo "action=apply" >> "$GITHUB_OUTPUT"
+            echo "action=apply tfplan-destroy-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Download Plan Artifact
