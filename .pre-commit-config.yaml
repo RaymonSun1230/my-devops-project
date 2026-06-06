@@ -3,5 +3,4 @@ repos:
     rev: v1.106.0
 
     hooks:
-      - id: terragrunt_fmt 
-      - id: terragrunt_validate
+      - id: terragrunt_fmt

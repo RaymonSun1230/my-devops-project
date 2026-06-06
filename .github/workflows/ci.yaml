@@ -158,10 +158,8 @@ jobs:
           context: ${{ matrix.context }}
           load: true
           platforms: linux/arm64
-
           tags: |
             ${{ matrix.image }}:${{ steps.tag.outputs.IMAGE_TAG }}
-            ${{ matrix.image }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
@@ -182,12 +180,11 @@ jobs:
           platforms: linux/arm64
           tags: |
             ${{ env.ECR_REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.IMAGE_TAG }}
-            ${{ env.ECR_REGISTRY }}/${{ matrix.image }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   update-values:
-    name: Update Helm Values
+    name: Update GitOps Values
     needs: 
       - build-and-push
       - resolve-branch
@@ -209,7 +206,7 @@ jobs:
       - name: Resolve gitops env path
         id: envpath
         run: |
-          echo "ENVIRONMENT=${{ needs.resolve-branch.outputs.branch }}" >> "$GITHUB_OUTPUT"
+          echo "env_dir=${{ needs.resolve-branch.outputs.branch }}" >> "$GITHUB_OUTPUT"
 
       - name: Update backend values
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_backend }}

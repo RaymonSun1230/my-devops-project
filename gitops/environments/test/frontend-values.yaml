@@ -1,0 +1,26 @@
+image:
+  tag: 059a604-20260605
+
+rollout:
+  canarySteps:
+    - setWeight: 10
+    - pause: {duration: 0}
+    - setWeight: 50
+    - pause: {duration: 0}
+    - setWeight: 100
+
+ingress:
+  enabled: true
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/subnets: "subnet-08a81773d86f3b1c5,subnet-03d1ff4101e6f3204"
+
+env:
+  - name: BACKEND_URL
+    value: "http://backend-dev:7001"
