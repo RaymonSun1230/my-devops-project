@@ -7,14 +7,6 @@ spec:
   generators:
     - list:
         elements:
-          - env: dev
-            branch: dev
-          - env: test
-            branch: test
-          - env: perf
-            branch: perf
-          - env: staging
-            branch: staging
           - env: production
             branch: main
 
@@ -36,16 +28,3 @@ spec:
       destination:
         server: https://kubernetes.default.svc
         namespace: myapp-{{ env }}
-
-{{- if ne "main" .branch }}
-      syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
-        retry:
-          limit: 3
-          backoff:
-            duration: 10s
-            factor: 2
-            maxDuration: 3m
-{{- end }}
