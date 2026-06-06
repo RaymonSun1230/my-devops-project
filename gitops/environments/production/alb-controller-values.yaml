@@ -1,9 +1,0 @@
-aws-load-balancer-controller:
-  clusterName: "demo-app-production"
-  region: "us-east-1"
-  vpcId: "vpc-037326f9c83dc7c68"
-
-  serviceAccount:
-    name: "aws-load-balancer-controller"
-    annotations:
-      eks.amazonaws.com/role-arn: "arn:aws:iam::385551094956:role/lb-controller-production-20260604152409072800000001"
