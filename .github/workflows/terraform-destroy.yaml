@@ -159,6 +159,7 @@ jobs:
 
       - name: Terraform Destroy/Apply
         run: |
+          ls -la ${{ steps.resolve.outputs.target_dir }}
           terragrunt ${{ steps.resolve.outputs.tg_command }} ${{ steps.resolve.outputs.action }} \
             --non-interactive \
             -- \
