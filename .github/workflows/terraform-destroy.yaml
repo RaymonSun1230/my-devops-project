@@ -106,8 +106,8 @@ jobs:
         if: inputs.resources != 'all'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.resolve.outputs.plan_out_flag }}
-          path: ${{ steps.resolve.outputs.target_dir }}/${{ steps.resolve.outputs.plan_out_flag }}
+          name: tfplan-destroy-${{ github.run_id }}
+          path: ${{ steps.resolve.outputs.target_dir }}/tfplan-destroy-${{ github.run_id }}
 
   destroy:
     name: "Terraform Destroy — ${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}"
