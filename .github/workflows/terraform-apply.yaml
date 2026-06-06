@@ -94,7 +94,8 @@ jobs:
         run: |
           terragrunt ${{ steps.resolve.outputs.tg_command }} plan \
             --non-interactive \
-            -out=tfplan
+            -- \
+            ${{ steps.resolve.outputs.plan_out_flag }}
         working-directory: ${{ steps.resolve.outputs.target_dir }}
 
       - name: Upload Plan Artifact
@@ -140,5 +141,7 @@ jobs:
 
       - name: Terraform Apply
         run: |
-          terragrunt apply --non-interactive tfplan-${{ github.run_id }}
+          terragrunt apply --non-interactive tfplan-${{ github.run_id }} \
+            -- \
+            -auto-approve
         working-directory: ${{ needs.plan.outputs.target_dir }}
