@@ -1,3 +1,6 @@
+image:
+  tag: 059a604-20260605
+
 rollout:
   autoPromotionEnabled: true
 

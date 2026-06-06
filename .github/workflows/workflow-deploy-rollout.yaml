@@ -1,4 +1,4 @@
-name: Deploy Rollout Helper
+name: Workflow - Deploy Rollout
 
 on:
   workflow_call:
