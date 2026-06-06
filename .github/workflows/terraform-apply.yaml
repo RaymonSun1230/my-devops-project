@@ -41,7 +41,7 @@ concurrency:
 env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
-  TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
+  TF_PLUGIN_CACHE_DIR: /home/runner/.terraform.d/plugin-cache
 
 jobs:
   plan:
@@ -50,6 +50,8 @@ jobs:
     environment: ${{ inputs.environment }}
     outputs:
       target_dir: ${{ steps.resolve.outputs.target_dir }}
+      tg_command: ${{ steps.resolve.outputs.tg_command }}
+      has_changes: ${{ steps.plan.outputs.has_changes }}
 
     steps:
       - name: Checkout repository
@@ -60,14 +62,14 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
           aws-region: ${{ inputs.aws_region }}
-      
-      - name: Setup Terraform Plugin Cache 
-        run: mkdir -p ~/.terraform.d/plugin-cache
 
-      - name: Cache Terraform Plugins 
-        uses: actions/cache@v4 
-        with: 
-          path: ~/.terraform.d/plugin-cache 
+      - name: Setup Terraform Plugin Cache
+        run: mkdir -p /home/runner/.terraform.d/plugin-cache
+
+      - name: Cache Terraform Plugins
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.terraform.d/plugin-cache
           key: terraform-${{ runner.os }}-${{ hashFiles('**/.terraform.lock.hcl') }}
 
       - name: Setup Terragrunt & Terraform
@@ -76,40 +78,60 @@ jobs:
       - name: Resolve target directory
         id: resolve
         run: |
+          PLAN_FILE="${GITHUB_WORKSPACE}/tfplan-${{ github.run_id }}"
           if [[ "${{ inputs.resources }}" == "all" ]]; then
             echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}" >> "$GITHUB_OUTPUT"
             echo "tg_command=run --all" >> "$GITHUB_OUTPUT"
+            echo "plan_out_flag=" >> "$GITHUB_OUTPUT"
           else
             echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}" >> "$GITHUB_OUTPUT"
             echo "tg_command=" >> "$GITHUB_OUTPUT"
+            echo "plan_out_flag=-out=$PLAN_FILE" >> "$GITHUB_OUTPUT"
+            echo "plan_file=$PLAN_FILE" >> "$GITHUB_OUTPUT"
           fi
-      
+
       - name: Terragrunt Init
         run: |
           terragrunt ${{ steps.resolve.outputs.tg_command }} init \
-            --terragrunt-non-interactive
+            --non-interactive
         working-directory: ${{ steps.resolve.outputs.target_dir }}
 
       - name: "Terragrunt Plan"
+        id: plan
         run: |
+          set +e
           terragrunt ${{ steps.resolve.outputs.tg_command }} plan \
-            --terragrunt-non-interactive \
-            -out=tfplan
+            --non-interactive \
+            -- \
+            -detailed-exitcode \
+            ${{ steps.resolve.outputs.plan_out_flag }}
+          exit_code=$?
+          set -e
+
+          if [[ $exit_code -eq 2 ]]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          elif [[ $exit_code -eq 0 ]]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Plan failed with exit code $exit_code" >&2
+            exit $exit_code
+          fi
         working-directory: ${{ steps.resolve.outputs.target_dir }}
 
       - name: Upload Plan Artifact
+        if: inputs.resources != 'all' && steps.plan.outputs.has_changes == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ github.run_id }}
-          path: ${{ steps.resolve.outputs.target_dir }}
-          include-hidden-files: true
+          path: ${{ steps.resolve.outputs.plan_file }}
 
   apply:
     name: "Terraform Apply — ${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}"
+    if: needs.plan.outputs.has_changes == 'true'
     needs: plan
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}-required-reviewers
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -121,24 +143,42 @@ jobs:
           aws-region: ${{ inputs.aws_region }}
 
       - name: Setup Terraform Plugin Cache
-        run: mkdir -p ~/.terraform.d/plugin-cache
+        run: mkdir -p /home/runner/.terraform.d/plugin-cache
 
       - name: Cache Terraform Plugins
         uses: actions/cache@v4
         with:
-          path: ~/.terraform.d/plugin-cache
+          path: /home/runner/.terraform.d/plugin-cache
           key: terraform-${{ runner.os }}-${{ hashFiles('**/.terraform.lock.hcl') }}
 
       - name: Setup Terragrunt
         uses: gruntwork-io/terragrunt-action@v3
 
+      - name: Resolve target directory
+        id: resolve
+        run: |
+          PLAN_FILE="${GITHUB_WORKSPACE}/tfplan-${{ github.run_id }}"
+          if [[ "${{ inputs.resources }}" == "all" ]]; then
+            echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}" >> "$GITHUB_OUTPUT"
+            echo "tg_command=run --all" >> "$GITHUB_OUTPUT"
+            echo "action=apply" >> "$GITHUB_OUTPUT"
+          else
+            echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}" >> "$GITHUB_OUTPUT"
+            echo "tg_command=" >> "$GITHUB_OUTPUT"
+            echo "action=apply $PLAN_FILE" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Download Plan Artifact
+        if: inputs.resources != 'all'
         uses: actions/download-artifact@v4
         with:
           name: tfplan-${{ github.run_id }}
-          path: ${{ needs.plan.outputs.target_dir }}
+          path: ${{ steps.resolve.outputs.target_dir }}
 
       - name: Terraform Apply
         run: |
-          terragrunt apply --terragrunt-non-interactive tfplan-${{ github.run_id }}
-        working-directory: ${{ needs.plan.outputs.target_dir }}
+          terragrunt ${{ steps.resolve.outputs.tg_command }} ${{ steps.resolve.outputs.action }} \
+            --non-interactive \
+            -- \
+            -auto-approve
+        working-directory: ${{ steps.resolve.outputs.target_dir }}

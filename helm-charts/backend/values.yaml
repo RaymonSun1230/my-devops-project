@@ -1,7 +1,6 @@
 replicaCount: 1
 image:
   repository: 385551094956.dkr.ecr.us-east-1.amazonaws.com/app-backend
-  tag: 059a604-20260605
   pullPolicy: IfNotPresent
 service:
   type: ClusterIP
@@ -20,6 +19,13 @@ env:
     value: "data.csv"
   - name: AWS_REGION
     value: "us-east-1"
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
 resources:
   requests:
     cpu: 128m

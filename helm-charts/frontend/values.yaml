@@ -1,7 +1,6 @@
 replicaCount: 1
 image:
   repository: 385551094956.dkr.ecr.us-east-1.amazonaws.com/app-frontend
-  tag: 059a604-20260605
   pullPolicy: IfNotPresent
 service:
   type: ClusterIP
@@ -33,7 +32,7 @@ ingress:
     alb.ingress.kubernetes.io/healthcheck-path: /
     alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
     alb.ingress.kubernetes.io/healthy-threshold-count: "2"
-    alb.ingress.kubernetes.io/subnets: "subnet-xxx,subnet-yyy"
+    alb.ingress.kubernetes.io/subnets: ""
   hosts:
     - paths:
         - path: /
@@ -41,6 +40,13 @@ ingress:
 env:
   - name: BACKEND_URL
     value: "http://backend:7001"
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
 resources:
   requests:
     cpu: 128m

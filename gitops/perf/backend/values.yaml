@@ -1,0 +1,13 @@
+image:
+  tag: 059a604-20260605
+
+rollout:
+  autoPromotionEnabled: true
+
+env:
+  - name: S3_BUCKET
+    value: "385551094956-us-east-1-data-source-perf"
+  - name: S3_KEY
+    value: "data.csv"
+  - name: AWS_REGION
+    value: "us-east-1"

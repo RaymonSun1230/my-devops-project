@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - env: production
+            branch: main
+
+  template:
+    metadata:
+      name: backend-{{ env }}
+      namespace: argocd
+    spec:
+      project: default
+
+      source:
+        repoURL: https://github.com/RaymonSun1230/my-devops-project.git
+        targetRevision: "{{ branch }}"
+        path: helm-charts/backend
+        helm:
+          valueFiles:
+            - $values/gitops/{{ env }}/backend/values.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: myapp-{{ env }}

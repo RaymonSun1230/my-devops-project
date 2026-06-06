@@ -5,6 +5,9 @@ on:
     branches:
       - dev
       - test
+    paths:
+      - app/backend/**
+      - app/frontend/**
   workflow_dispatch:
     inputs:
       environment:
@@ -30,6 +33,10 @@ permissions:
   id-token: write 
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   AWS_REGION: us-east-1
   ECR_REGISTRY: 385551094956.dkr.ecr.us-east-1.amazonaws.com
@@ -50,7 +57,8 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             case "${{ inputs.environment }}" in
               production) echo "branch=main" >> "$GITHUB_OUTPUT" ;;
-              *)          echo "branch=${{ inputs.environment }}" >> "$GITHUB_OUTPUT" ;;
+            *)          
+              echo "branch=${{ inputs.environment }}" >> "$GITHUB_OUTPUT" ;;
             esac
           else
             echo "branch=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
@@ -62,7 +70,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        app: [backend, frontend]
+        app: 
+          - backend
+          - frontend
 
     steps:
       - name: Checkout repository
@@ -75,12 +85,15 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install uv
+        run: pip install uv
+
       - name: Install dependencies
         working-directory: app/${{ matrix.app }}
-        run: |
-          pip install uv
-          uv sync --frozen
-          pip install ruff pytest
+        run: uv sync --frozen
+
+      - name: Install lint/test tools
+        run: pip install ruff pytest
 
       - name: Lint with Ruff
         working-directory: app/${{ matrix.app }}
@@ -92,9 +105,27 @@ jobs:
 
   build-and-push:
     name: Build & Push Docker Images
-    needs: [lint-and-test, resolve-branch]
+    needs: 
+      - lint-and-test
+      - resolve-branch
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-branch.outputs.branch }}
+
+    strategy:
+      matrix:
+        include:
+          - app: backend
+            context: app/backend
+            image: app-backend
+            changed: backend
+
+          - app: frontend
+            context: app/frontend
+            image: app-frontend
+            changed: frontend
+    
+    outputs:
+      image_tag: ${{ steps.tag.outputs.IMAGE_TAG }}
 
     steps:
       - name: Checkout repository
@@ -121,35 +152,46 @@ jobs:
         id: tag
         run: echo "IMAGE_TAG=$(echo ${{ github.sha }} | cut -c1-7)-$(date +'%Y%m%d')" >> "$GITHUB_OUTPUT"
 
-      - name: Build & push backend
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_backend }}
+      - name: Build Docker image
         uses: docker/build-push-action@v6
         with:
-          context: app/backend
-          push: true
+          context: ${{ matrix.context }}
+          load: true
           platforms: linux/arm64
           tags: |
-            ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}
-            ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
+            ${{ matrix.image }}:${{ steps.tag.outputs.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ matrix.image }}:${{ steps.tag.outputs.IMAGE_TAG }}
+          format: table
+          exit-code: 1
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
 
-      - name: Build & push frontend
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_frontend }}
+      - name: Push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: app/frontend
+          context: ${{ matrix.context }}
           push: true
           platforms: linux/arm64
           tags: |
-            ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}
-            ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
+            ${{ env.ECR_REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   update-values:
-    name: Update Helm Values
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_backend || inputs.deploy_frontend }}
-    needs: [build-and-push, resolve-branch]
+    name: Update GitOps Values
+    needs: 
+      - build-and-push
+      - resolve-branch
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout repository
@@ -161,17 +203,22 @@ jobs:
         id: tag
         run: echo "IMAGE_TAG=$(echo ${{ github.sha }} | cut -c1-7)-$(date +'%Y%m%d')" >> "$GITHUB_OUTPUT"
 
-      - name: Update backend values.yaml
+      - name: Resolve gitops env path
+        id: envpath
+        run: |
+          echo "env_dir=${{ needs.resolve-branch.outputs.branch }}" >> "$GITHUB_OUTPUT"
+
+      - name: Update backend values
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_backend }}
         uses: mikefarah/yq@v4.45.1
         with:
-          cmd: yq -i '.image.tag = "${{ steps.tag.outputs.IMAGE_TAG }}"' helm-charts/backend/values.yaml
+          cmd: yq -i '.image.tag = "${{ steps.tag.outputs.IMAGE_TAG }}"' gitops/environments/${{ steps.envpath.outputs.env_dir }}/backend-values.yaml
 
-      - name: Update frontend values.yaml
+      - name: Update frontend values
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_frontend }}
         uses: mikefarah/yq@v4.45.1
         with:
-          cmd: yq -i '.image.tag = "${{ steps.tag.outputs.IMAGE_TAG }}"' helm-charts/frontend/values.yaml
+          cmd: yq -i '.image.tag = "${{ steps.tag.outputs.IMAGE_TAG }}"' gitops/environments/${{ steps.envpath.outputs.env_dir }}/frontend-values.yaml
 
       - name: Direct commit to branch
         if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
@@ -181,7 +228,7 @@ jobs:
           commit_user_email: "ci-bot@company.com"
           commit_message: "chore: update image tags to ${{ steps.tag.outputs.IMAGE_TAG }}"
           branch: ${{ needs.resolve-branch.outputs.branch }}
-          file_pattern: helm-charts/backend/values.yaml helm-charts/frontend/values.yaml
+          file_pattern: gitops/environments/
 
       - name: Create Pull Request
         if: ${{ needs.resolve-branch.outputs.branch != 'dev' && needs.resolve-branch.outputs.branch != 'test' }}
