@@ -87,13 +87,13 @@ jobs:
       - name: Terragrunt Init
         run: |
           terragrunt ${{ steps.resolve.outputs.tg_command }} init \
-            --terragrunt-non-interactive
+            --non-interactive
         working-directory: ${{ steps.resolve.outputs.target_dir }}
 
       - name: "Terragrunt Plan (Destroy)"
         run: |
           terragrunt ${{ steps.resolve.outputs.tg_command }} plan \
-            --terragrunt-non-interactive \
+            --non-interactive \
             -destroy \
             -out=tfplan
         working-directory: ${{ steps.resolve.outputs.target_dir }}
@@ -141,5 +141,5 @@ jobs:
 
       - name: Terraform Destroy
         run: |
-          terragrunt destroy --terragrunt-non-interactive tfplan-${{ github.run_id }}
+          terragrunt destroy --non-interactive tfplan-${{ github.run_id }}
         working-directory: ${{ needs.plan.outputs.target_dir }}

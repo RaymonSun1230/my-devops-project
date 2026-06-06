@@ -1,4 +1,4 @@
-name: Terraform Plan
+name: PR Terraform Plan
 
 on:
   pull_request:
@@ -113,7 +113,7 @@ jobs:
         run: echo "dir=terraform/environments/${{ matrix.env }}/${{ matrix.region }}/${{ matrix.module }}" >> "$GITHUB_OUTPUT"
 
       - name: Terragrunt Init
-        run: terragrunt init --terragrunt-non-interactive
+        run: terragrunt init --non-interactive
         working-directory: ${{ steps.wd.outputs.dir }}
 
       - name: Terragrunt HCL Format
@@ -129,7 +129,7 @@ jobs:
         continue-on-error: true
         working-directory: ${{ steps.wd.outputs.dir }}
         run: |
-          terragrunt plan --terragrunt-non-interactive -detailed-exitcode 2>&1 | tee /tmp/plan_output.txt
+          terragrunt plan --non-interactive -detailed-exitcode 2>&1 | tee /tmp/plan_output.txt
           echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Trivy Scan
