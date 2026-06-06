@@ -94,6 +94,7 @@ jobs:
         run: |
           terragrunt ${{ steps.resolve.outputs.tg_command }} plan \
             --non-interactive \
+            -- \
             -destroy \
             -out=tfplan
         working-directory: ${{ steps.resolve.outputs.target_dir }}
