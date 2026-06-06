@@ -104,7 +104,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-destroy-${{ github.run_id }}
-          path: ${{ steps.resolve.outputs.target_dir }}/tfplan
+          path: ${{ steps.resolve.outputs.target_dir }}
 
   destroy:
     name: "Terraform Destroy — ${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}"
@@ -142,6 +142,7 @@ jobs:
 
       - name: Terraform Destroy
         run: |
+          ls -la ${{ needs.plan.outputs.target_dir }}
           terragrunt ${{ needs.plan.outputs.tg_command }} apply \
             --non-interactive \
             tfplan-destroy-${{ github.run_id }}
