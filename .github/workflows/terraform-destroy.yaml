@@ -80,9 +80,11 @@ jobs:
           if [[ "${{ inputs.resources }}" == "all" ]]; then
             echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}" >> "$GITHUB_OUTPUT"
             echo "tg_command=run --all" >> "$GITHUB_OUTPUT"
+            echo "plan_out_flag=" >> "$GITHUB_OUTPUT"
           else
             echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}" >> "$GITHUB_OUTPUT"
             echo "tg_command=" >> "$GITHUB_OUTPUT"
+            echo "plan_out_flag=-out=tfplan-destroy-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Terragrunt Init
@@ -97,10 +99,11 @@ jobs:
             --non-interactive \
             -- \
             -destroy \
-            -out=tfplan
+            ${{ steps.resolve.outputs.plan_out_flag }}
         working-directory: ${{ steps.resolve.outputs.target_dir }}
 
       - name: Upload Plan Artifact
+        if: inputs.resources != 'all'
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-destroy-${{ github.run_id }}
@@ -134,16 +137,28 @@ jobs:
       - name: Setup Terragrunt
         uses: gruntwork-io/terragrunt-action@v3
 
+      - name: Resolve target directory
+        id: resolve
+        run: |
+          if [[ "${{ inputs.resources }}" == "all" ]]; then
+            echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}" >> "$GITHUB_OUTPUT"
+            echo "tg_command=run --all" >> "$GITHUB_OUTPUT"
+            echo "action=destroy" >> "$GITHUB_OUTPUT"
+          else
+            echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}" >> "$GITHUB_OUTPUT"
+            echo "tg_command=" >> "$GITHUB_OUTPUT"
+            echo "action=apply" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Download Plan Artifact
+        if: inputs.resources != 'all'
         uses: actions/download-artifact@v4
         with:
           name: tfplan-destroy-${{ github.run_id }}
-          path: ${{ needs.plan.outputs.target_dir }}
+          path: ${{ steps.resolve.outputs.target_dir }}
 
-      - name: Terraform Destroy
+      - name: Terraform Destroy/Apply
         run: |
-          ls -la ${{ needs.plan.outputs.target_dir }}
-          terragrunt ${{ needs.plan.outputs.tg_command }} apply \
-            --non-interactive \
-            tfplan-destroy-${{ github.run_id }}
-        working-directory: ${{ needs.plan.outputs.target_dir }}
+          terragrunt ${{ steps.resolve.outputs.tg_command }} ${{ steps.resolve.outputs.action }} \
+            --non-interactive
+        working-directory: ${{ steps.resolve.outputs.target_dir }}
