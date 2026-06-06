@@ -145,5 +145,5 @@ jobs:
         run: |
           terragrunt ${{ needs.plan.outputs.tg_command }} destroy \
             --non-interactive \
-            tfplan-${{ github.run_id }}
+            tfplan-destroy-${{ github.run_id }}
         working-directory: ${{ needs.plan.outputs.target_dir }}
