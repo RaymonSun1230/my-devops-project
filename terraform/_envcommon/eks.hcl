@@ -33,9 +33,9 @@ inputs = {
   eks_managed_node_groups = {
     group = {
       name         = "demo-app-ng"
-      desired_size = 2
-      max_size     = 3
-      min_size     = 2
+      desired_size = 4
+      max_size     = 5
+      min_size     = 1
 
       capacity_type  = "ON_DEMAND"
       instance_types = ["t4g.small"]
