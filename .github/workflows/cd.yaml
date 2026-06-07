@@ -3,13 +3,6 @@ name: CD
 on:
   workflow_dispatch:
     inputs:
-      action:
-        description: "Action"
-        type: choice
-        options:
-          - deploy
-          - rollback
-        default: deploy
       environment:
         description: "Target Environment"
         type: choice
@@ -27,26 +20,34 @@ on:
           - backend
           - frontend
         default: backend
+      aws_region:
+        description: "AWS Region"
+        type: choice
+        options:
+          - us-east-1
+          - us-east-2
+        default: us-east-1
+      cluster:
+        description: "EKS Cluster Prefix"
+        type: choice
+        options:
+          - demo-app
+        default: demo-app
 
 permissions:
   id-token: write
   contents: read
 
-env:
-  AWS_REGION: us-east-1
-  CLUSTER_PREFIX: demo-app
-
 jobs:
   install:
     name: "Install — ${{ inputs.app }}"
-    if: ${{ inputs.action == 'deploy' }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ inputs.aws_region }}
 
       - name: Install tools
         run: |
@@ -57,12 +58,12 @@ jobs:
 
       - name: Configure kubectl
         run: |
-          CLUSTER="${{ env.CLUSTER_PREFIX }}-${{ inputs.environment }}"
+          CLUSTER="${{ inputs.cluster }}-${{ inputs.environment }}"
           NAMESPACE="myapp"
           ROLLOUT="${{ inputs.app }}"
           echo "NAMESPACE=$NAMESPACE" >> "$GITHUB_ENV"
           echo "ROLLOUT=$ROLLOUT" >> "$GITHUB_ENV"
-          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name "${CLUSTER}"
+          aws eks update-kubeconfig --region ${{ inputs.aws_region }} --name "${CLUSTER}"
 
       - name: Trigger ArgoCD sync
         run: |
@@ -89,7 +90,6 @@ jobs:
 
   promote:
     name: "Promote — ${{ inputs.app }}"
-    if: ${{ inputs.action == 'deploy' }}
     needs: install
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment == 'production' && 'production-required-reviewers' || inputs.environment }}
@@ -97,18 +97,18 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ inputs.aws_region }}
 
       - name: Install tools & configure kubectl
         run: |
           curl -sSL https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64 -o /usr/local/bin/kubectl-argo-rollouts
           chmod +x /usr/local/bin/kubectl-argo-rollouts
-          CLUSTER="${{ env.CLUSTER_PREFIX }}-${{ inputs.environment }}"
+          CLUSTER="${{ inputs.cluster }}-${{ inputs.environment }}"
           NAMESPACE="myapp"
           ROLLOUT="${{ inputs.app }}"
           echo "NAMESPACE=$NAMESPACE" >> "$GITHUB_ENV"
           echo "ROLLOUT=$ROLLOUT" >> "$GITHUB_ENV"
-          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name "${CLUSTER}"
+          aws eks update-kubeconfig --region ${{ inputs.aws_region }} --name "${CLUSTER}"
 
       - name: Promote Rollout
         run: |
@@ -120,34 +120,3 @@ jobs:
           kubectl argo rollouts status "${ROLLOUT}" -n "${NAMESPACE}" --timeout=300s || true
           echo "────────── Rollout Status ──────────"
           kubectl get rollout "${ROLLOUT}" -n "${NAMESPACE}" -o wide 2>/dev/null || true
-
-  rollback:
-    name: "Rollback — ${{ inputs.app }}"
-    if: ${{ inputs.action == 'rollback' }}
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-    steps:
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Install tools & configure kubectl
-        run: |
-          curl -sSL https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64 -o /usr/local/bin/kubectl-argo-rollouts
-          chmod +x /usr/local/bin/kubectl-argo-rollouts
-          CLUSTER="${{ env.CLUSTER_PREFIX }}-${{ inputs.environment }}"
-          NAMESPACE="myapp"
-          ROLLOUT="${{ inputs.app }}"
-          echo "NAMESPACE=$NAMESPACE" >> "$GITHUB_ENV"
-          echo "ROLLOUT=$ROLLOUT" >> "$GITHUB_ENV"
-          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name "${CLUSTER}"
-
-      - name: Abort Rollout
-        run: |
-          echo "Aborting ${ROLLOUT}..."
-          kubectl argo rollouts abort "${ROLLOUT}" -n "${NAMESPACE}"
-
-      - name: Wait for rollback
-        run: |
-          kubectl argo rollouts status "${ROLLOUT}" -n "${NAMESPACE}" --timeout=300s || true

@@ -20,15 +20,22 @@ on:
           - perf
           - production
         default: dev
-      deploy_backend:
-        description: "Deploy Backend"
+      build_frontend:
+        description: "Build Frontend"
         type: boolean
         default: true
-      deploy_frontend:
-        description: "Deploy Frontend"
+      build_backend:
+        description: "Build Backend"
         type: boolean
         default: true
-
+      aws_region:
+        description: "AWS Region"
+        type: choice
+        options:
+          - us-east-1
+          - us-east-2
+        default: us-east-1
+      
 permissions: 
   id-token: write 
   contents: read
@@ -36,9 +43,6 @@ permissions:
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  AWS_REGION: us-east-1
   ECR_REGISTRY: 385551094956.dkr.ecr.us-east-1.amazonaws.com
   BACKEND_IMAGE: app-backend
   FRONTEND_IMAGE: app-frontend
@@ -150,7 +154,7 @@ jobs:
 
       - name: Generate image tag
         id: tag
-        run: echo "IMAGE_TAG=$(echo ${{ github.sha }} | cut -c1-7)-$(date +'%Y%m%d')" >> "$GITHUB_OUTPUT"
+        run: echo "IMAGE_TAG=v$(date +'%Y%m%d')-$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
 
       - name: Build Docker image
         uses: docker/build-push-action@v6
@@ -201,10 +205,10 @@ jobs:
 
       - name: Generate image tag
         id: tag
-        run: echo "IMAGE_TAG=$(echo ${{ github.sha }} | cut -c1-7)-$(date +'%Y%m%d')" >> "$GITHUB_OUTPUT"
+        run: echo "IMAGE_TAG=v$(date +'%Y%m%d')-$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
 
       - name: Update backend values
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_backend }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_backend }}
         run: |
           ENV="${{ inputs.environment || github.ref_name }}"
           if [[ "$ENV" == "production" ]]; then
@@ -215,7 +219,7 @@ jobs:
           fi
 
       - name: Update frontend values
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_frontend }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_frontend }}
         run: |
           ENV="${{ inputs.environment || github.ref_name }}"
           if [[ "$ENV" == "production" ]]; then
@@ -253,6 +257,6 @@ jobs:
             | Backend | `${{ env.ECR_REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}` |
             | Frontend | `${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}` |
 
-            After merging, ArgoCD will sync automatically (production requires manual sync in ArgoCD UI).
+            After merging, run the [CD workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/cd.yaml) to deploy and promote.
           labels: automated-deploy
           delete-branch: true
