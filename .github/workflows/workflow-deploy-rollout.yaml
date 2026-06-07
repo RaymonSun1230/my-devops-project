@@ -15,12 +15,6 @@ on:
         description: "backend / frontend"
         required: true
         type: string
-      full_promote:
-        description: "Canary only — skip to 100%"
-        required: false
-        type: boolean
-        default: false
-
 permissions: 
   id-token: write 
   contents: read
@@ -30,11 +24,36 @@ env:
   CLUSTER_PREFIX: demo-app
 
 jobs:
-  rollout:
-    name: ${{ inputs.action == 'install' && 'Install' || inputs.action == 'promote' && 'Promote' || 'Rollback' }} — ${{ inputs.app }}
+  setup:
+    name: Resolve environment
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    outputs:
+      namespace: ${{ steps.resolve.outputs.namespace }}
+      cluster: ${{ steps.resolve.outputs.cluster }}
+      rollout: ${{ steps.resolve.outputs.rollout }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
 
+      - name: Resolve cluster, namespace & rollout
+        id: resolve
+        run: |
+          CLUSTER="${{ env.CLUSTER_PREFIX }}-${{ inputs.environment }}"
+          NAMESPACE="myapp"
+          ROLLOUT="${{ inputs.app }}"
+          echo "namespace=$NAMESPACE" >> "$GITHUB_OUTPUT"
+          echo "cluster=$CLUSTER" >> "$GITHUB_OUTPUT"
+          echo "rollout=$ROLLOUT" >> "$GITHUB_OUTPUT"
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name "${CLUSTER}"
+
+  install:
+    name: "Install — ${{ inputs.app }}"
+    if: ${{ inputs.action == 'install' }}
+    needs: setup
+    runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -44,93 +63,98 @@ jobs:
 
       - name: Install kubectl argo rollouts plugin
         run: |
-          curl -sSL https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64 \
-            -o /usr/local/bin/kubectl-argo-rollouts
+          curl -sSL https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64 -o /usr/local/bin/kubectl-argo-rollouts
           chmod +x /usr/local/bin/kubectl-argo-rollouts
-          kubectl argo rollouts version
 
-      - name: Resolve branch & configure kubectl
+      - name: Configure kubectl
         run: |
-          case "${{ inputs.environment }}" in
-            production) BRANCH="main" ;;
-            *)          BRANCH="${{ inputs.environment }}" ;;
-          esac
-          CLUSTER="${{ env.CLUSTER_PREFIX }}-${BRANCH}"
-          NAMESPACE="myapp-${{ inputs.environment }}"
-          echo "NAMESPACE=${NAMESPACE}" >> "$GITHUB_ENV"
-          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name "${CLUSTER}"
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} \
+            --name ${{ needs.setup.outputs.cluster }}
 
-      # ── Install ──
-      - name: "[Install] Wait for new ReplicaSet"
-        if: ${{ inputs.action == 'install' }}
+      - name: Wait for rollout healthy
         run: |
-          ROLLOUT="${{ inputs.app }}-${{ inputs.environment }}"
-          echo "⏳ Waiting for new ReplicaSet..."
-          for i in $(seq 1 60); do
-            CURRENT_RS=$(kubectl get rollout "$ROLLOUT" -n "$NAMESPACE" \
-              -o jsonpath='{.status.currentPodHash}' 2>/dev/null || echo "")
-            STABLE_RS=$(kubectl get rollout "$ROLLOUT" -n "$NAMESPACE" \
-              -o jsonpath='{.status.stableRS}' 2>/dev/null || echo "")
-            if [[ -n "$CURRENT_RS" ]] && [[ "$CURRENT_RS" != "$STABLE_RS" ]]; then
-              echo "✅ New ReplicaSet detected: $CURRENT_RS"
-              break
-            fi
-            echo "⏳ Attempt $i/60..."
-            sleep 10
-          done
-
-      - name: "[Install] Wait for pods ready"
-        if: ${{ inputs.action == 'install' }}
-        run: |
-          ROLLOUT="${{ inputs.app }}-${{ inputs.environment }}"
-          kubectl argo rollouts status "$ROLLOUT" -n "$NAMESPACE" --watch=false --timeout=300s
+          kubectl argo rollouts status "${{ needs.setup.outputs.rollout }}" \
+            -n "${{ needs.setup.outputs.namespace }}" \
+            --watch --timeout=300s
           echo "✅ Rollout pods ready!"
 
-      # ── Promote ──
-      - name: "[Promote] Promote Rollout"
-        if: ${{ inputs.action == 'promote' }}
-        run: |
-          ROLLOUT="${{ inputs.app }}-${{ inputs.environment }}"
-          if [[ "${{ inputs.full_promote }}" == "true" ]] && [[ "${{ inputs.app }}" == "frontend" ]]; then
-            echo "🚀 Full promote: skipping canary to 100%..."
-            for i in 1 2 3; do
-              kubectl argo rollouts promote "$ROLLOUT" -n "$NAMESPACE" || true
-              sleep 5
-            done
-          else
-            echo "🚀 Promoting to next step..."
-            kubectl argo rollouts promote "$ROLLOUT" -n "$NAMESPACE"
-          fi
+  promote:
+    name: "Promote — ${{ inputs.app }}"
+    if: ${{ inputs.action == 'promote' }}
+    needs: setup
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment == 'production' && 'production-required-reviewers' || inputs.environment }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: "[Promote] Wait for promotion to settle"
-        if: ${{ inputs.action == 'promote' }}
+      - name: Install kubectl argo rollouts plugin
         run: |
-          ROLLOUT="${{ inputs.app }}-${{ inputs.environment }}"
-          kubectl argo rollouts status "$ROLLOUT" -n "$NAMESPACE" --timeout=300s || true
+          curl -sSL https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64 -o /usr/local/bin/kubectl-argo-rollouts
+          chmod +x /usr/local/bin/kubectl-argo-rollouts
 
-      # ── Rollback ──
-      - name: "[Rollback] Abort Rollout"
-        if: ${{ inputs.action == 'rollback' }}
+      - name: Configure kubectl
         run: |
-          ROLLOUT="${{ inputs.app }}-${{ inputs.environment }}"
-          echo "🛑 Aborting Rollout $ROLLOUT..."
-          kubectl argo rollouts abort "$ROLLOUT" -n "$NAMESPACE"
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} \
+            --name ${{ needs.setup.outputs.cluster }}
 
-      - name: "[Rollback] Wait for rollback to complete"
-        if: ${{ inputs.action == 'rollback' }}
+      - name: Promote Rollout
         run: |
-          ROLLOUT="${{ inputs.app }}-${{ inputs.environment }}"
-          kubectl argo rollouts status "$ROLLOUT" -n "$NAMESPACE" --timeout=300s || true
+          echo "🚀 Promoting to next step..."
+          kubectl argo rollouts promote "${{ needs.setup.outputs.rollout }}" \
+            -n "${{ needs.setup.outputs.namespace }}"
 
-      # ── Final Status ──
+      - name: Wait for promotion to settle
+        run: |
+          kubectl argo rollouts status "${{ needs.setup.outputs.rollout }}" \
+            -n "${{ needs.setup.outputs.namespace }}" --timeout=300s || true
+
       - name: Show final state
         run: |
-          ROLLOUT="${{ inputs.app }}-${{ inputs.environment }}"
           echo "────────── Rollout Status ──────────"
-          kubectl get rollout "$ROLLOUT" -n "$NAMESPACE" -o wide 2>/dev/null || \
-            echo "Rollout not found (may not be created yet)"
+          kubectl get rollout "${{ needs.setup.outputs.rollout }}" \
+            -n "${{ needs.setup.outputs.namespace }}" -o wide 2>/dev/null || \
+            echo "Rollout not found"
           echo ""
-          echo "📍 Current step: $(kubectl get rollout "$ROLLOUT" -n "$NAMESPACE" \
+          echo "📍 Current step: $(kubectl get rollout "${{ needs.setup.outputs.rollout }}" \
+            -n "${{ needs.setup.outputs.namespace }}" \
             -o jsonpath='{.status.currentStepIndex}' 2>/dev/null || echo 'completed')"
-          echo "📦 Stable RS: $(kubectl get rollout "$ROLLOUT" -n "$NAMESPACE" \
+          echo "📦 Stable RS: $(kubectl get rollout "${{ needs.setup.outputs.rollout }}" \
+            -n "${{ needs.setup.outputs.namespace }}" \
             -o jsonpath='{.status.stableRS}' 2>/dev/null || echo 'N/A')"
+
+  rollback:
+    name: "Rollback — ${{ inputs.app }}"
+    if: ${{ inputs.action == 'rollback' }}
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install kubectl argo rollouts plugin
+        run: |
+          curl -sSL https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64 -o /usr/local/bin/kubectl-argo-rollouts
+          chmod +x /usr/local/bin/kubectl-argo-rollouts
+
+      - name: Configure kubectl
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} \
+            --name ${{ needs.setup.outputs.cluster }}
+
+      - name: Abort Rollout
+        run: |
+          echo "🛑 Aborting Rollout ${{ needs.setup.outputs.rollout }}..."
+          kubectl argo rollouts abort "${{ needs.setup.outputs.rollout }}" \
+            -n "${{ needs.setup.outputs.namespace }}"
+
+      - name: Wait for rollback to complete
+        run: |
+          kubectl argo rollouts status "${{ needs.setup.outputs.rollout }}" \
+            -n "${{ needs.setup.outputs.namespace }}" --timeout=300s || true
