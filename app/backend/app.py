@@ -14,17 +14,15 @@ AWS_ACCESS_KEY = os.environ.get('AWS_ACCESS_KEY_ID')
 AWS_SECRET_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
 
 AWS_ENDPOINT_URL = os.environ.get('AWS_ENDPOINT_URL')
-extra_config = {}
-if AWS_ENDPOINT_URL:
-    extra_config['endpoint_url'] = AWS_ENDPOINT_URL
 
-s3_client = boto3.client(
-    's3',
-    region_name=AWS_REGION,
-    aws_access_key_id=AWS_ACCESS_KEY,
-    aws_secret_access_key=AWS_SECRET_KEY,
-    **extra_config
-)
+s3_kwargs = {'region_name': AWS_REGION}
+if AWS_ACCESS_KEY and AWS_SECRET_KEY:
+    s3_kwargs['aws_access_key_id'] = AWS_ACCESS_KEY
+    s3_kwargs['aws_secret_access_key'] = AWS_SECRET_KEY
+if AWS_ENDPOINT_URL:
+    s3_kwargs['endpoint_url'] = AWS_ENDPOINT_URL
+
+s3_client = boto3.client('s3', **s3_kwargs)
 
 def read_csv_from_s3(bucket, key):
     try:

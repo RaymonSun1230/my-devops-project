@@ -7,6 +7,7 @@ autoscaling:
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
 rollout:
+  dynamicStableScale: true
   canarySteps:
     - setWeight: 25
     - pause: {}

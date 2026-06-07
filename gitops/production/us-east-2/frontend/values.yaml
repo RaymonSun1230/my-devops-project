@@ -7,6 +7,7 @@ autoscaling:
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
 rollout:
+  dynamicStableScale: true
   canarySteps:
     - setWeight: 25
     - pause: {}
@@ -22,10 +23,6 @@ ingress:
     alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
     alb.ingress.kubernetes.io/healthy-threshold-count: "2"
     alb.ingress.kubernetes.io/subnets: "subnet-08a81773d86f3b1c5,subnet-03d1ff4101e6f3204"
-    # Uncomment when domain + ACM cert are ready:
-    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:385551094956:certificate/your-cert-id
-    # alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    # alb.ingress.kubernetes.io/ssl-redirect: "443"
 env:
   - name: BACKEND_URL
     value: "http://backend-dev:7001"
