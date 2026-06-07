@@ -2,15 +2,14 @@ image:
   tag: 0215b15-20260607
 autoscaling:
   enabled: true
-  minReplicas: 2
-  maxReplicas: 10
+  minReplicas: 1
+  maxReplicas: 3
   targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
 rollout:
   canarySteps:
-    - setWeight: 10
-    - pause: {duration: 0}
-    - setWeight: 50
-    - pause: {duration: 0}
+    - setWeight: 25
+    - pause: {}
     - setWeight: 100
 ingress:
   enabled: true

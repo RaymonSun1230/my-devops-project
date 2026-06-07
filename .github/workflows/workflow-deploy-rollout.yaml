@@ -63,22 +63,45 @@ jobs:
           role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Install kubectl argo rollouts plugin
+      - name: Install kubectl argo rollouts plugin & argocd CLI
         run: |
           curl -sSL https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64 -o /usr/local/bin/kubectl-argo-rollouts
           chmod +x /usr/local/bin/kubectl-argo-rollouts
+          curl -sSL https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64 -o /usr/local/bin/argocd
+          chmod +x /usr/local/bin/argocd
 
       - name: Configure kubectl
         run: |
           aws eks update-kubeconfig --region ${{ env.AWS_REGION }} \
             --name ${{ needs.setup.outputs.cluster }}
 
-      - name: Wait for rollout healthy
+      - name: Trigger ArgoCD sync
         run: |
-          kubectl argo rollouts status "${{ needs.setup.outputs.rollout }}" \
-            -n "${{ needs.setup.outputs.namespace }}" \
-            --watch --timeout=300s
-          echo "✅ Rollout pods ready!"
+          echo "🚀 Syncing application ${{ needs.setup.outputs.rollout }}..."
+          ARGO_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
+            -o jsonpath='{.data.password}' | base64 -d)
+          argocd login --core
+          argocd app sync "${{ needs.setup.outputs.rollout }}" \
+            --timeout 300 || true
+
+      - name: Wait for new pods ready
+        run: |
+          echo "⏳ Waiting for new ReplicaSet..."
+          for i in $(seq 1 60); do
+            CURRENT_RS=$(kubectl get rollout "${{ needs.setup.outputs.rollout }}" \
+              -n "${{ needs.setup.outputs.namespace }}" \
+              -o jsonpath='{.status.currentPodHash}' 2>/dev/null || echo "")
+            if [[ -n "$CURRENT_RS" ]]; then
+              echo "✅ New RS detected: $CURRENT_RS"
+              echo "⏳ Waiting for pods to be Ready..."
+              kubectl wait --for=condition=Ready pods \
+                -l "rollouts-pod-template-hash=$CURRENT_RS" \
+                -n "${{ needs.setup.outputs.namespace }}" --timeout=300s && \
+                echo "✅ New pods ready!" && break
+            fi
+            echo "⏳ Attempt $i/60..."
+            sleep 10
+          done
 
   promote:
     name: "Promote — ${{ inputs.app }}"
