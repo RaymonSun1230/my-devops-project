@@ -12,7 +12,10 @@ locals {
 }
 
 inputs = {
-  bucket = "${local.account_id}-${local.aws_region}-data-source-${local.environment}"
+  force_destroy = false
+
+  control_object_ownership = true
+  object_ownership         = "BucketOwnerEnforced"
 
   tags = {
     Environment = local.environment
