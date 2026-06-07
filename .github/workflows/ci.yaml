@@ -109,7 +109,7 @@ jobs:
       - lint-and-test
       - resolve-branch
     runs-on: ubuntu-latest
-    environment: ${{ needs.resolve-branch.outputs.branch }}
+    environment: ${{ inputs.environment }}
 
     strategy:
       matrix:
