@@ -31,6 +31,7 @@ jobs:
       namespace: ${{ steps.resolve.outputs.namespace }}
       cluster: ${{ steps.resolve.outputs.cluster }}
       rollout: ${{ steps.resolve.outputs.rollout }}
+    environment: ${{ inputs.environment }}
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -54,6 +55,7 @@ jobs:
     if: ${{ inputs.action == 'install' }}
     needs: setup
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -131,6 +133,7 @@ jobs:
     if: ${{ inputs.action == 'rollback' }}
     needs: setup
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
