@@ -43,6 +43,8 @@ permissions:
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
+env:
   ECR_REGISTRY: 385551094956.dkr.ecr.us-east-1.amazonaws.com
   BACKEND_IMAGE: app-backend
   FRONTEND_IMAGE: app-frontend
