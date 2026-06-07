@@ -97,11 +97,10 @@ jobs:
               echo "⏳ Waiting for pods to be Ready..."
               kubectl wait --for=condition=Ready pods \
                 -l "rollouts-pod-template-hash=$CURRENT_RS" \
-                -n "${{ needs.setup.outputs.namespace }}" --timeout=300s && \
+                -n "${{ needs.setup.outputs.namespace }}" --timeout=10s && \
                 echo "✅ New pods ready!" && break
             fi
             echo "⏳ Attempt $i/60..."
-            sleep 10
           done
 
   promote:
