@@ -1,5 +1,5 @@
 image:
-  tag: 0215b15-20260607
+  tag: 624d8ee-20260607
 autoscaling:
   enabled: true
   minReplicas: 1
