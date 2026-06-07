@@ -45,19 +45,35 @@ jobs:
           echo "Changed files:"
           echo "$CHANGED_FILES"
 
-          # Extract unique env/region/module combinations from changed paths
           MODULES_JSON="[]"
           while IFS= read -r FILE; do
-            # Match: terraform/environments/<env>/<region>/<module>/...
-            if [[ "$FILE" =~ ^terraform/environments/([^/]+)/([^/]+)/([^/]+)/ ]]; then
+            # Match: terraform/environments/<env>/<region>/<module-path>/...
+            # Use a greedy capture to support multi-level modules (e.g. ecr/app-backend, s3/data-source)
+            if [[ "$FILE" =~ ^terraform/environments/([^/]+)/([^/]+)/(.+) ]]; then
               ENV="${BASH_REMATCH[1]}"
               REGION="${BASH_REMATCH[2]}"
-              MODULE="${BASH_REMATCH[3]}"
-              # Only add if it has a terragrunt.hcl
-              if [[ -f "terraform/environments/$ENV/$REGION/$MODULE/terragrunt.hcl" ]]; then
-                MODULES_JSON=$(echo "$MODULES_JSON" | jq --arg env "$ENV" --arg region "$REGION" --arg module "$MODULE" \
+              MODULE_PATH="${BASH_REMATCH[3]}"
+
+              # Extract the module directory (first component of remaining path)
+              MODULE_DIR="${MODULE_PATH%%/*}"
+
+              # Check if this is a simple module (terragrunt.hcl directly inside)
+              if [[ -f "terraform/environments/$ENV/$REGION/$MODULE_DIR/terragrunt.hcl" ]]; then
+                MODULES_JSON=$(echo "$MODULES_JSON" | jq --arg env "$ENV" --arg region "$REGION" --arg module "$MODULE_DIR" \
                   '. + [{"env": $env, "region": $region, "module": $module}]')
               fi
+
+              # Also check for nested sub-modules (e.g. ecr/app-backend, s3/data-source)
+              # Walk the path to find any parent dir that contains a terragrunt.hcl
+              REMAINING="$MODULE_PATH"
+              while [[ "$REMAINING" =~ / ]]; do
+                PARENT="${REMAINING%/*}"
+                if [[ -f "terraform/environments/$ENV/$REGION/$PARENT/terragrunt.hcl" ]]; then
+                  MODULES_JSON=$(echo "$MODULES_JSON" | jq --arg env "$ENV" --arg region "$REGION" --arg module "$PARENT" \
+                    '. + [{"env": $env, "region": $region, "module": $module}]')
+                fi
+                REMAINING="$PARENT"
+              done
             fi
           done <<< "$CHANGED_FILES"
 
@@ -111,6 +127,7 @@ jobs:
       - name: Set working directory
         id: wd
         run: echo "dir=terraform/environments/${{ matrix.env }}/${{ matrix.region }}/${{ matrix.module }}" >> "$GITHUB_OUTPUT"
+        shell: bash
 
       - name: Terragrunt Init
         run: terragrunt init --non-interactive
