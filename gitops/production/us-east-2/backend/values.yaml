@@ -1,9 +1,7 @@
 image:
-  tag: 059a604-20260605
-
+  tag: 0215b15-20260607
 rollout:
   autoPromotionEnabled: true
-
 env:
   - name: S3_BUCKET
     value: "385551094956-us-east-1-data-source-production"

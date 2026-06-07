@@ -1,12 +1,10 @@
 image:
-  tag: 059a604-20260605
-
+  tag: 0215b15-20260607
 autoscaling:
   enabled: true
   minReplicas: 2
   maxReplicas: 10
   targetCPUUtilizationPercentage: 70
-
 rollout:
   canarySteps:
     - setWeight: 10
@@ -14,7 +12,6 @@ rollout:
     - setWeight: 50
     - pause: {duration: 0}
     - setWeight: 100
-
 ingress:
   enabled: true
   annotations:
@@ -26,7 +23,6 @@ ingress:
     alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
     alb.ingress.kubernetes.io/healthy-threshold-count: "2"
     alb.ingress.kubernetes.io/subnets: "subnet-09d2cbd4a54837f51,subnet-0b6114244852273a8"
-
 env:
   - name: BACKEND_URL
     value: "http://backend-production:7001"
