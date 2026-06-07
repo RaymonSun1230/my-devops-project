@@ -25,4 +25,4 @@ ingress:
     alb.ingress.kubernetes.io/subnets: "subnet-09d2cbd4a54837f51,subnet-0b6114244852273a8"
 env:
   - name: BACKEND_URL
-    value: "http://backend-production:7001"
+    value: "http://backend-active:7001"

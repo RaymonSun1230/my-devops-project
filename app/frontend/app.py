@@ -1,8 +1,16 @@
 import os
+import logging
 import requests
 from flask import Flask, render_template
 
 app = Flask(__name__)
+
+# Suppress health check logs
+class HealthCheckFilter(logging.Filter):
+    def filter(self, record):
+        return not ('GET / ' in record.getMessage() or 'GET /favicon' in record.getMessage())
+logging.getLogger('werkzeug').addFilter(HealthCheckFilter())
+
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:5001')
 
 @app.route('/')

@@ -1,11 +1,18 @@
 import os
 import csv
 import io
+import logging
 import boto3
 from flask import Flask, jsonify
 from botocore.exceptions import ClientError
 
 app = Flask(__name__)
+
+# Suppress health check logs
+class HealthCheckFilter(logging.Filter):
+    def filter(self, record):
+        return not ('GET /health' in record.getMessage() or 'GET /api/data' in record.getMessage())
+logging.getLogger('werkzeug').addFilter(HealthCheckFilter())
 
 S3_BUCKET = os.environ.get('S3_BUCKET', 'my-csv-bucket')
 S3_KEY = os.environ.get('S3_KEY', 'data.csv')
