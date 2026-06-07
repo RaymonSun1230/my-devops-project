@@ -27,39 +27,127 @@ on:
           - backend
           - frontend
         default: backend
-        
+
 permissions:
   id-token: write
   contents: read
+
+env:
+  AWS_REGION: us-east-1
+  CLUSTER_PREFIX: demo-app
 
 jobs:
   install:
     name: "Install — ${{ inputs.app }}"
     if: ${{ inputs.action == 'deploy' }}
-    uses: ./.github/workflows/workflow-deploy-rollout.yaml
-    with:
-      action: install
-      environment: ${{ inputs.environment }}
-      app: ${{ inputs.app }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install tools
+        run: |
+          curl -sSL https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64 -o /usr/local/bin/kubectl-argo-rollouts
+          chmod +x /usr/local/bin/kubectl-argo-rollouts
+          curl -sSL https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64 -o /usr/local/bin/argocd
+          chmod +x /usr/local/bin/argocd
+
+      - name: Configure kubectl
+        run: |
+          CLUSTER="${{ env.CLUSTER_PREFIX }}-${{ inputs.environment }}"
+          NAMESPACE="myapp"
+          ROLLOUT="${{ inputs.app }}"
+          echo "NAMESPACE=$NAMESPACE" >> "$GITHUB_ENV"
+          echo "ROLLOUT=$ROLLOUT" >> "$GITHUB_ENV"
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name "${CLUSTER}"
+
+      - name: Trigger ArgoCD sync
+        run: |
+          kubectl config set-context --current --namespace=argocd
+          argocd login --core
+          argocd app sync "${ROLLOUT}" --timeout 300 || true
+
+      - name: Wait for new pods ready
+        run: |
+          echo "⏳ Waiting for new ReplicaSet..."
+          for i in $(seq 1 60); do
+            CURRENT_RS=$(kubectl get rollout "${ROLLOUT}" -n "${NAMESPACE}" \
+              -o jsonpath='{.status.currentPodHash}' 2>/dev/null || echo "")
+            if [[ -n "$CURRENT_RS" ]]; then
+              echo "New RS detected: $CURRENT_RS"
+              kubectl wait --for=condition=Ready pods \
+                -l "rollouts-pod-template-hash=$CURRENT_RS" \
+                -n "${NAMESPACE}" --timeout=300s && \
+                echo "New pods ready!" && break
+            fi
+            echo "Attempt $i/60..."
+            sleep 5
+          done
 
   promote:
     name: "Promote — ${{ inputs.app }}"
     if: ${{ inputs.action == 'deploy' }}
     needs: install
-    uses: ./.github/workflows/workflow-deploy-rollout.yaml
-    with:
-      action: promote
-      environment: ${{ inputs.environment }}
-      app: ${{ inputs.app }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment == 'production' && 'production-required-reviewers' || inputs.environment }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install tools & configure kubectl
+        run: |
+          curl -sSL https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64 -o /usr/local/bin/kubectl-argo-rollouts
+          chmod +x /usr/local/bin/kubectl-argo-rollouts
+          CLUSTER="${{ env.CLUSTER_PREFIX }}-${{ inputs.environment }}"
+          NAMESPACE="myapp"
+          ROLLOUT="${{ inputs.app }}"
+          echo "NAMESPACE=$NAMESPACE" >> "$GITHUB_ENV"
+          echo "ROLLOUT=$ROLLOUT" >> "$GITHUB_ENV"
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name "${CLUSTER}"
+
+      - name: Promote Rollout
+        run: |
+          echo "Promoting ${ROLLOUT}..."
+          kubectl argo rollouts promote "${ROLLOUT}" -n "${NAMESPACE}"
+
+      - name: Wait for promotion to settle
+        run: |
+          kubectl argo rollouts status "${ROLLOUT}" -n "${NAMESPACE}" --timeout=300s || true
+          echo "────────── Rollout Status ──────────"
+          kubectl get rollout "${ROLLOUT}" -n "${NAMESPACE}" -o wide 2>/dev/null || true
 
   rollback:
     name: "Rollback — ${{ inputs.app }}"
     if: ${{ inputs.action == 'rollback' }}
-    uses: ./.github/workflows/workflow-deploy-rollout.yaml
-    with:
-      action: rollback
-      environment: ${{ inputs.environment }}
-      app: ${{ inputs.app }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install tools & configure kubectl
+        run: |
+          curl -sSL https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64 -o /usr/local/bin/kubectl-argo-rollouts
+          chmod +x /usr/local/bin/kubectl-argo-rollouts
+          CLUSTER="${{ env.CLUSTER_PREFIX }}-${{ inputs.environment }}"
+          NAMESPACE="myapp"
+          ROLLOUT="${{ inputs.app }}"
+          echo "NAMESPACE=$NAMESPACE" >> "$GITHUB_ENV"
+          echo "ROLLOUT=$ROLLOUT" >> "$GITHUB_ENV"
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name "${CLUSTER}"
+
+      - name: Abort Rollout
+        run: |
+          echo "Aborting ${ROLLOUT}..."
+          kubectl argo rollouts abort "${ROLLOUT}" -n "${NAMESPACE}"
+
+      - name: Wait for rollback
+        run: |
+          kubectl argo rollouts status "${ROLLOUT}" -n "${NAMESPACE}" --timeout=300s || true
