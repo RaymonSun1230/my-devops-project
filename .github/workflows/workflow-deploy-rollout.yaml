@@ -77,7 +77,8 @@ jobs:
 
       - name: Trigger ArgoCD sync
         run: |
-          echo "🚀 Syncing application ${{ needs.setup.outputs.rollout }}..."
+          kubectl config set-context --current --namespace=argocd
+          echo "Syncing application ${{ needs.setup.outputs.rollout }}..."
           ARGO_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
             -o jsonpath='{.data.password}' | base64 -d)
           argocd login --core
