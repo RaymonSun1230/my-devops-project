@@ -20,7 +20,4 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: myapp
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+  # syncPolicy disabled — manual sync only for production
