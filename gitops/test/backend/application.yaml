@@ -1,42 +1,26 @@
 apiVersion: argoproj.io/v1alpha1
-kind: ApplicationSet
+kind: Application
 metadata:
+  name: backend
+  namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
-  namespace: argocd
 spec:
-  generators:
-    - list:
-        elements:
-          - env: test
-            branch: test
-
-  template:
-    metadata:
-      name: backend-{{ env }}
-      namespace: argocd
-    spec:
-      project: default
-
-      source:
-        repoURL: https://github.com/RaymonSun1230/my-devops-project.git
-        targetRevision: "{{ branch }}"
-        path: helm-charts/backend
-        helm:
-          valueFiles:
-            - $values/gitops/{{ env }}/backend/values.yaml
-
-      destination:
-        server: https://kubernetes.default.svc
-        namespace: myapp-{{ env }}
-
-      syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
-        retry:
-          limit: 3
-          backoff:
-            duration: 10s
-            factor: 2
-            maxDuration: 3m
+  project: default
+  sources:
+    - repoURL: https://github.com/RaymonSun1230/my-devops-project.git
+      targetRevision: test
+      path: helm-charts/backend
+      helm:
+        valueFiles:
+          - $values/gitops/test/backend/values.yaml
+    - repoURL: https://github.com/RaymonSun1230/my-devops-project.git
+      targetRevision: test
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: myapp
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
