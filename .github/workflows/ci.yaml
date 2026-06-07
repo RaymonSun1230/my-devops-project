@@ -203,22 +203,27 @@ jobs:
         id: tag
         run: echo "IMAGE_TAG=$(echo ${{ github.sha }} | cut -c1-7)-$(date +'%Y%m%d')" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve gitops env path
-        id: envpath
-        run: |
-          echo "env_dir=${{ needs.resolve-branch.outputs.branch }}" >> "$GITHUB_OUTPUT"
-
       - name: Update backend values
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_backend }}
-        uses: mikefarah/yq@v4.45.1
-        with:
-          cmd: yq -i '.image.tag = "${{ steps.tag.outputs.IMAGE_TAG }}"' gitops/environments/${{ steps.envpath.outputs.env_dir }}/backend-values.yaml
+        run: |
+          ENV="${{ inputs.environment || github.ref_name }}"
+          if [[ "$ENV" == "production" ]]; then
+            yq -i '.image.tag = "${{ steps.tag.outputs.IMAGE_TAG }}"' gitops/production/us-east-1/backend/values.yaml
+            yq -i '.image.tag = "${{ steps.tag.outputs.IMAGE_TAG }}"' gitops/production/us-east-2/backend/values.yaml
+          else
+            yq -i '.image.tag = "${{ steps.tag.outputs.IMAGE_TAG }}"' gitops/$ENV/backend/values.yaml
+          fi
 
       - name: Update frontend values
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_frontend }}
-        uses: mikefarah/yq@v4.45.1
-        with:
-          cmd: yq -i '.image.tag = "${{ steps.tag.outputs.IMAGE_TAG }}"' gitops/environments/${{ steps.envpath.outputs.env_dir }}/frontend-values.yaml
+        run: |
+          ENV="${{ inputs.environment || github.ref_name }}"
+          if [[ "$ENV" == "production" ]]; then
+            yq -i '.image.tag = "${{ steps.tag.outputs.IMAGE_TAG }}"' gitops/production/us-east-1/frontend/values.yaml
+            yq -i '.image.tag = "${{ steps.tag.outputs.IMAGE_TAG }}"' gitops/production/us-east-2/frontend/values.yaml
+          else
+            yq -i '.image.tag = "${{ steps.tag.outputs.IMAGE_TAG }}"' gitops/$ENV/frontend/values.yaml
+          fi
 
       - name: Direct commit to branch
         if: ${{ needs.resolve-branch.outputs.branch == 'dev' || needs.resolve-branch.outputs.branch == 'test' }}
@@ -228,10 +233,10 @@ jobs:
           commit_user_email: "ci-bot@company.com"
           commit_message: "chore: update image tags to ${{ steps.tag.outputs.IMAGE_TAG }}"
           branch: ${{ needs.resolve-branch.outputs.branch }}
-          file_pattern: gitops/environments/
+          file_pattern: gitops/
 
       - name: Create Pull Request
-        if: ${{ needs.resolve-branch.outputs.branch != 'dev' && needs.resolve-branch.outputs.branch != 'test' }}
+        if: ${{ needs.resolve-branch.outputs.branch == 'staging' || needs.resolve-branch.outputs.branch == 'perf' || needs.resolve-branch.outputs.branch == 'main' }}
         uses: peter-evans/create-pull-request@v7
         with:
           commit-message: "chore: update image tags to ${{ steps.tag.outputs.IMAGE_TAG }}"
@@ -248,6 +253,6 @@ jobs:
             | Backend | `${{ env.ECR_REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}` |
             | Frontend | `${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}` |
 
-            After merging, ArgoCD will automatically sync and Argo Rollouts will execute the deployment strategy.
+            After merging, ArgoCD will sync automatically (production requires manual sync in ArgoCD UI).
           labels: automated-deploy
           delete-branch: true
