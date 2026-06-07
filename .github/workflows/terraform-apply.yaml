@@ -28,6 +28,8 @@ on:
           - vpc
           - eks
           - iam
+          - s3-data-source
+          - argocd
         default: all
 
 permissions: 
