@@ -28,7 +28,9 @@ on:
           - vpc
           - eks
           - iam
-          - s3-data-source
+          - s3/data-source
+          - ecr/app-frontend
+          - ecr/app-backend
           - argocd
         default: all
 
