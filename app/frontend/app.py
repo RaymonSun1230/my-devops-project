@@ -8,14 +8,18 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Suppress health check logs (keep / visible for debug)
 class HealthCheckFilter(logging.Filter):
     def filter(self, record):
-        return 'GET /favicon' not in record.getMessage()
+        msg = record.getMessage()
+        return 'GET /health' not in msg and 'GET /favicon' not in msg
 logging.getLogger('werkzeug').addFilter(HealthCheckFilter())
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://backend:5001')
 logger.info('BACKEND_URL=%s', BACKEND_URL)
+
+@app.route('/health')
+def health():
+    return {"status": "ok"}, 200
 
 @app.route('/')
 def index():
