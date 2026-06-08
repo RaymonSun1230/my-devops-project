@@ -59,7 +59,7 @@ graph TB
                 R53["Route 53<br/>DNS (production)"]
             end
 
-            ALB["AWS ALB<br/>Internet-facing<br/>HTTP :80"]
+            ALB["AWS ALB<br/>HTTPS :443"]
         end
     end
 
@@ -74,7 +74,7 @@ graph TB
     end
 
     %% User Traffic Flow
-    USER -->|"HTTP GET /"| ALB
+    USER -->|"https://cloudnativeops.online"| ALB
     ALB -->|"Ingress Rule: /*"| FE_STABLE
     FE_POD_V1 -->|"GET /api/data"| BE_ACTIVE
     BE_POD_V1 -->|"boto3 get_object()"| S3_DATA

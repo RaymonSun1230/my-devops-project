@@ -9,13 +9,13 @@
 
 An **enterprise-style**, multi-environment DevOps platform on **AWS EKS** — demonstrating **GitOps** with Argo CD, **progressive delivery** via Argo Rollouts (Blue-Green + Canary), and full **Infrastructure as Code** with Terragrunt/Terraform.
 
-> **Note:** This is a portfolio/educational project. Route 53, ACM (HTTPS), and cross-region DNS failover are not configured — the ALB serves HTTP only and multi-region is structural, not actively routed.
-
 ---
 
 ## Highlights
 
-- **5 environments** (dev → test → staging → perf → production) across **2 AWS regions**
+- **5 environments** (dev → test → staging → perf → production) across **2 AWS regions** (us-east-1 primary + us-east-2 DR)
+- **Multi-region DNS failover** via Route53 — automatic failover to us-east-2 if us-east-1 is unhealthy
+- **HTTPS** with ACM certificates and custom domain [`cloudnativeops.online`](https://cloudnativeops.online)
 - **GitOps** with Argo CD App-of-Apps — sync waves, multi-source apps, auto-sync + self-heal
 - **Progressive delivery**: Blue-Green (backend) + Canary (frontend) via Argo Rollouts
 - **Fully modular IaC**: Terragrunt DRY pattern with `_envcommon/` reusable modules
@@ -37,32 +37,79 @@ graph TB
         CD[CD Pipeline<br/>Sync ArgoCD → Promote Rollout]
     end
 
-    subgraph "AWS Cloud (us-east-1 / us-east-2)"
-        ALB[AWS ALB<br/>Internet-facing]
-        subgraph "EKS Cluster"
-            ArgoCD[Argo CD<br/>argocd ns]
-            Rollouts[Argo Rollouts<br/>argo-rollouts ns]
-            ALBC[AWS LB Controller<br/>kube-system ns]
-            subgraph "myapp ns"
-                FE[Frontend<br/>Canary Rollout]
-                BE[Backend<br/>Blue-Green Rollout]
-            end
-        end
-        S3[S3<br/>CSV Data]
-        ECR[ECR<br/>Images]
-        IAM[IAM Roles<br/>IRSA via OIDC]
+    subgraph "DNS Layer - Route53"
+        R53[Route 53<br/>cloudnativeops.online<br/>Failover routing]
+        HC1[Health Check<br/>us-east-1 ALB]
+        HC2[Health Check<br/>us-east-2 ALB]
     end
 
-    User[User] -->|HTTP| ALB
-    ALB --> FE
-    FE -->|HTTP /api/data| BE
-    BE -->|boto3| S3
-    Git[GitHub] -->|Webhook| ArgoCD
-    ArgoCD -->|Sync| Rollouts
-    CI -->|Push| ECR
-    CD -->|Promote| Rollouts
-    IAM -.->|IRSA| BE
-    IAM -.->|IRSA| ALBC
+    subgraph "Region: us-east-1 (Primary / Active)"
+        ALB1[AWS ALB<br/>HTTPS :443]
+        ECR1[ECR<br/>app-backend<br/>app-frontend]
+        subgraph "EKS Cluster - demo-app-production"
+            ARGO1[Argo CD<br/>argocd ns]
+            ROLL1[Argo Rollouts<br/>argo-rollouts ns]
+            ALBC1[AWS LB Controller<br/>kube-system ns]
+            subgraph "myapp ns"
+                FE1[Frontend<br/>Canary Rollout]
+                BE1[Backend<br/>Blue-Green Rollout]
+            end
+        end
+        S31[S3<br/>CSV Data<br/>Terraform State]
+        IAM1[IAM Roles<br/>IRSA via OIDC]
+    end
+
+    subgraph "Region: us-east-2 (DR / Standby)"
+        ALB2[AWS ALB<br/>HTTPS :443]
+        ECR2[ECR<br/>app-backend<br/>app-frontend]
+        subgraph "EKS Cluster - demo-app-production"
+            ARGO2[Argo CD<br/>argocd ns]
+            ROLL2[Argo Rollouts<br/>argo-rollouts ns]
+            ALBC2[AWS LB Controller<br/>kube-system ns]
+            subgraph "myapp ns"
+                FE2[Frontend<br/>Canary Rollout]
+                BE2[Backend<br/>Blue-Green Rollout]
+            end
+        end
+        S32[S3<br/>CSV Data<br/>Terraform State]
+        IAM2[IAM Roles<br/>IRSA via OIDC]
+    end
+
+    User[User] -->|"https://cloudnativeops.online"| R53
+    R53 -->|"✅ PRIMARY (active)"| ALB1
+    R53 -.->|"🔁 SECONDARY (DR)"| ALB2
+    HC1 -.->|"Health: HTTPS 443 /health"| ALB1
+    HC2 -.->|"Health: HTTPS 443 /health"| ALB2
+    R53 -.->|"Monitor"| HC1
+    R53 -.->|"Monitor"| HC2
+
+    ALB1 --> FE1
+    FE1 -->|HTTP /api/data| BE1
+    BE1 -->|boto3| S31
+
+    ALB2 --> FE2
+    FE2 -->|HTTP /api/data| BE2
+    BE2 -->|boto3| S32
+
+    Git[GitHub] -->|Webhook| ARGO1
+    Git -->|Webhook| ARGO2
+    CI -->|Push| ECR1
+    CI -->|Push| ECR2
+    CD -->|Promote| ROLL1
+    CD -->|Promote| ROLL2
+
+    IAM1 -.->|IRSA| BE1
+    IAM1 -.->|IRSA| ALBC1
+    IAM2 -.->|IRSA| BE2
+    IAM2 -.->|IRSA| ALBC2
+
+    classDef aws fill:#FF9900,color:#000
+    classDef k8s fill:#326CE5,color:#fff
+    classDef dns fill:#8B5CF6,color:#fff
+
+    class ECR1,ECR2,S31,S32,IAM1,IAM2 aws
+    class ARGO1,ROLL1,ALBC1,FE1,BE1,ARGO2,ROLL2,ALBC2,FE2,BE2 k8s
+    class R53,HC1,HC2 dns
 ```
 
 ---
@@ -210,12 +257,9 @@ This project is an **enterprise-style platform engineering and GitOps demonstrat
 
 | Area | Current State | Why |
 |------|--------------|-----|
-| **HTTPS/TLS** | ALB serves HTTP only | No domain registered; ACM certificate not provisioned |
-| **DNS & Custom Domain** | Accessed via ALB DNS hostname | Route 53 not configured — no custom domain, no automated DNS records |
-| **DNS Failover** | Multi-region structure exists | No Route 53 health checks or failover routing |
 | **WAF** | Not enabled | Low priority for demonstration |
 
-The current implementation prioritizes **platform architecture, GitOps, and delivery automation** over internet-facing production hardening — all of which are addressed in the roadmap below.
+HTTPS, custom domain, and multi-region DNS failover are already live at [`https://cloudnativeops.online`](https://cloudnativeops.online). The remaining items are addressed in the roadmap below.
 
 
 ---
@@ -223,7 +267,7 @@ The current implementation prioritizes **platform architecture, GitOps, and deli
 ## Screenshots
 
 *Add real screenshots here to demonstrate the platform is running:*
-|-----------|----------------|
+
 | Screenshot | What to Capture |
 |-----------|----------------|
 | ![ArgoCD Apps](docs/screenshots/argocd-apps.png) | ArgoCD dashboard — all apps Healthy + Synced |
@@ -307,9 +351,9 @@ The following enhancements are planned to evolve the platform toward a fully pro
 
 ### Networking & Ingress
 
-- Route 53 custom domain integration
-- ACM certificate provisioning + HTTPS-only ingress
-- ExternalDNS for automatic DNS record management
+- **✅ Route 53 custom domain** — live at [`cloudnativeops.online`](https://cloudnativeops.online)
+- **✅ ACM HTTPS** — live, auto-redirects HTTP to HTTPS
+- **✅ Multi-region DNS failover** — us-east-1 primary → us-east-2 DR
 - AWS WAF integration for edge security
 
 ### Security
