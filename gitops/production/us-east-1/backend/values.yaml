@@ -1,5 +1,5 @@
 image:
-  tag: v20260608-ca2903d
+  tag: v20260608-69354f2
 autoscaling:
   enabled: true
   minReplicas: 1
