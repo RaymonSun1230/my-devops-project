@@ -3,6 +3,13 @@ name: Terraform Apply
 on:
   workflow_dispatch:
     inputs:
+      action:
+        description: "Action"
+        type: choice
+        options:
+          - plan
+          - apply
+        default: plan
       environment:
         description: "Target Environment"
         type: choice
@@ -27,7 +34,8 @@ on:
           - all
           - vpc
           - eks
-          - iam
+          - iam/alb-controller
+          - iam/app-backend
           - s3/data-source
           - ecr/app-frontend
           - ecr/app-backend
@@ -123,7 +131,7 @@ jobs:
         working-directory: ${{ steps.resolve.outputs.target_dir }}
 
       - name: Upload Plan Artifact
-        if: inputs.resources != 'all' && steps.plan.outputs.has_changes == 'true'
+        if: inputs.action == 'apply' && inputs.resources != 'all' && steps.plan.outputs.has_changes == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ github.run_id }}
@@ -131,7 +139,7 @@ jobs:
 
   apply:
     name: "Terraform Apply — ${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}"
-    if: needs.plan.outputs.has_changes == 'true'
+    if: inputs.action == 'apply' && needs.plan.outputs.has_changes == 'true'
     needs: plan
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}-required-reviewers
