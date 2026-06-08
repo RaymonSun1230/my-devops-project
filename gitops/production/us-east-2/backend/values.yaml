@@ -8,6 +8,9 @@ autoscaling:
   targetMemoryUtilizationPercentage: 80
 rollout:
   autoPromotionEnabled: false
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::385551094956:role/backend-s3-production"
 env:
   - name: S3_BUCKET
     value: "385551094956-us-east-2-data-source-production"

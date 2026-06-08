@@ -1,4 +1,4 @@
-replicaCount: 2
+replicaCount: 4
 image:
   repository: 385551094956.dkr.ecr.us-east-1.amazonaws.com/app-frontend
   pullPolicy: IfNotPresent
@@ -8,7 +8,6 @@ service:
   targetPort: 7000
 rollout:
   enabled: true
-  canaryReplicas: 2
   canaryMaxSurge: "25%"
   canaryMaxUnavailable: 0
   canarySteps:

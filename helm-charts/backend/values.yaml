@@ -7,6 +7,8 @@ service:
   port: 7001
   targetPort: 7001
   annotations: {}
+serviceAccount:
+  annotations: {}
 rollout:
   enabled: true
   autoPromotionEnabled: false

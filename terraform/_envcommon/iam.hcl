@@ -10,10 +10,6 @@ locals {
 }
 
 inputs = {
-  name = "lb-controller-${local.environment}"
-
-  attach_load_balancer_controller_policy = true
-
   tags = {
     Environment = local.environment
     ManagedBy   = "Terragrunt"
