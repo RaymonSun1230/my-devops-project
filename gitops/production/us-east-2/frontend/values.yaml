@@ -8,7 +8,7 @@ autoscaling:
   targetMemoryUtilizationPercentage: 80
 rollout:
   dynamicStableScale: true
-  canaryMaxSurge: 0
+  canaryMaxSurge: 1
   canaryMaxUnavailable: 0
   canarySteps:
     - setWeight: 25
