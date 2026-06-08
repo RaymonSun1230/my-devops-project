@@ -28,13 +28,6 @@ on:
         description: "Build Backend"
         type: boolean
         default: true
-      aws_region:
-        description: "AWS Region"
-        type: choice
-        options:
-          - us-east-1
-          - us-east-2
-        default: us-east-1
       
 permissions: 
   id-token: write 
@@ -45,7 +38,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ECR_REGISTRY: 385551094956.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REGISTRY_US_EAST_1: 385551094956.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REGISTRY_US_EAST_2: 385551094956.dkr.ecr.us-east-2.amazonaws.com
   BACKEND_IMAGE: app-backend
   FRONTEND_IMAGE: app-frontend
 
@@ -82,12 +76,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.resolve-branch.outputs.branch }}
 
       - name: Setup Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -145,15 +139,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
-          aws-region: ${{ inputs.aws_region }}
-
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
-
       - name: Generate image tag
         id: tag
         run: echo "IMAGE_TAG=v$(date +'%Y%m%d')-$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
@@ -178,14 +163,43 @@ jobs:
           ignore-unfixed: true
           severity: CRITICAL,HIGH
 
-      - name: Push Docker image
+      - name: Configure AWS credentials (us-east-1)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: us-east-1
+      
+      - name: Login to Amazon ECR (us-east-1)
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push Docker image to us-east-1
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           push: true
           platforms: linux/arm64
           tags: |
-            ${{ env.ECR_REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.IMAGE_TAG }}
+            ${{ env.ECR_REGISTRY_US_EAST_1 }}/${{ matrix.image }}:${{ steps.tag.outputs.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Configure AWS credentials (us-east-2)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: us-east-2
+
+      - name: Login to Amazon ECR (us-east-2)
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push Docker image to us-east-2
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          platforms: linux/arm64
+          tags: |
+            ${{ env.ECR_REGISTRY_US_EAST_2 }}/${{ matrix.image }}:${{ steps.tag.outputs.IMAGE_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -256,8 +270,8 @@ jobs:
 
             | Component | Image |
             |---|---|
-            | Backend | `${{ env.ECR_REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}` |
-            | Frontend | `${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}` |
+            | Backend | `${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}` |
+            | Frontend | `${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}` |
 
             After merging, run the [CD workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/cd.yaml) to deploy and promote.
           labels: automated-deploy

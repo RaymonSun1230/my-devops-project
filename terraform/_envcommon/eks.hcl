@@ -14,6 +14,20 @@ inputs = {
   kubernetes_version                       = "1.35"
   enable_cluster_creator_admin_permissions = true
 
+  access_entries = {
+    admin = {
+      principal_arn = "arn:aws:iam::385551094956:user/Raymon-PowerUser"
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
+
   # EKS addons
   addons = {
     coredns                = {}

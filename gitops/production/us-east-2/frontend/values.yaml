@@ -1,4 +1,5 @@
 image:
+  repository: 385551094956.dkr.ecr.us-east-2.amazonaws.com/app-frontend
   tag: v20260608-951c736
 autoscaling:
   enabled: true
@@ -23,12 +24,13 @@ ingress:
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
     alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
     alb.ingress.kubernetes.io/healthcheck-path: /health
-    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"    
     alb.ingress.kubernetes.io/healthy-threshold-count: "2"
-    alb.ingress.kubernetes.io/subnets: "subnet-08a81773d86f3b1c5,subnet-03d1ff4101e6f3204"
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-2:385551094956:certificate/1fb46816-b1ce-4df0-b9e5-e0c662b8919a"
+    alb.ingress.kubernetes.io/subnets: "subnet-0d24249fede5aff4b,subnet-0f82afd45717014a7"
 env:
   - name: BACKEND_URL
     value: "http://backend-active:7001"

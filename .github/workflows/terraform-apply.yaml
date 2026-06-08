@@ -39,6 +39,8 @@ on:
           - s3/data-source
           - ecr/app-frontend
           - ecr/app-backend
+          - acm
+          - route53
           - argocd
         default: all
 
