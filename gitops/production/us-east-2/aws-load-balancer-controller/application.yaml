@@ -16,11 +16,11 @@ spec:
       values: |
         clusterName: "demo-app-production"
         region: "us-east-2"
-        vpcId: "vpc-xxxxxxxxxxxxxxxxx"
+        vpcId: "vpc-044801d75bda3bb9d"
         serviceAccount:
           name: aws-load-balancer-controller
           annotations:
-            eks.amazonaws.com/role-arn: "arn:aws:iam::385551094956:role/lb-controller-production-use2-xxxxxxxxxxxx"
+            eks.amazonaws.com/role-arn: "arn:aws:iam::385551094956:role/lb-controller-production-20260608131605859100000001"
         enableShield: false
         enableWaf: false
         enableWafv2: false
