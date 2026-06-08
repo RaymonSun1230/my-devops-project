@@ -3,6 +3,13 @@ name: CD
 on:
   workflow_dispatch:
     inputs:
+      action:
+        description: "Action"
+        type: choice
+        options:
+          - deploy
+          - abort
+        default: deploy
       environment:
         description: "Target Environment"
         type: choice
@@ -40,6 +47,7 @@ permissions:
 
 jobs:
   install:
+    if: ${{ inputs.action == 'deploy' }}
     name: "Install — ${{ inputs.app }}"
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
@@ -89,6 +97,7 @@ jobs:
           done
 
   promote:
+    if: ${{ inputs.action == 'deploy' }}
     name: "Promote — ${{ inputs.app }}"
     needs: install
     runs-on: ubuntu-latest
@@ -116,6 +125,39 @@ jobs:
           kubectl argo rollouts promote "${ROLLOUT}" -n "${NAMESPACE}"
 
       - name: Wait for promotion to settle
+        run: |
+          kubectl argo rollouts status "${ROLLOUT}" -n "${NAMESPACE}" --timeout=300s || true
+          echo "────────── Rollout Status ──────────"
+          kubectl get rollout "${ROLLOUT}" -n "${NAMESPACE}" -o wide 2>/dev/null || true
+
+  abort:
+    if: ${{ inputs.action == 'abort' }}
+    name: "Abort — ${{ inputs.app }}"
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Install tools & configure kubectl
+        run: |
+          curl -sSL https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64 -o /usr/local/bin/kubectl-argo-rollouts
+          chmod +x /usr/local/bin/kubectl-argo-rollouts
+          CLUSTER="${{ inputs.cluster }}-${{ inputs.environment }}"
+          NAMESPACE="myapp"
+          ROLLOUT="${{ inputs.app }}"
+          echo "NAMESPACE=$NAMESPACE" >> "$GITHUB_ENV"
+          echo "ROLLOUT=$ROLLOUT" >> "$GITHUB_ENV"
+          aws eks update-kubeconfig --region ${{ inputs.aws_region }} --name "${CLUSTER}"
+
+      - name: Abort Rollout
+        run: |
+          echo "Aborting ${ROLLOUT}..."
+          kubectl argo rollouts abort "${ROLLOUT}" -n "${NAMESPACE}"
+
+      - name: Wait for rollback to settle
         run: |
           kubectl argo rollouts status "${ROLLOUT}" -n "${NAMESPACE}" --timeout=300s || true
           echo "────────── Rollout Status ──────────"

@@ -6,10 +6,10 @@ metadata:
   labels:
     {{- include "frontend.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.rollout.canaryReplicas | default .Values.replicaCount }}
+  replicas: {{ .Values.replicaCount }}
   strategy:
     canary:
-      maxSurge: {{ .Values.rollout.canaryMaxSurge | default "25%" }}
+      maxSurge: {{ .Values.rollout.canaryMaxSurge | default 0 }}
       maxUnavailable: {{ .Values.rollout.canaryMaxUnavailable | default 0 }}
       dynamicStableScale: {{ .Values.rollout.dynamicStableScale | default false }}
       {{- if .Values.rollout.trafficRouting }}
@@ -19,6 +19,7 @@ spec:
         {{- toYaml .Values.rollout.trafficRouting | nindent 8 }}
       {{- end }}
       steps:
+        {{- toYaml .Values.rollout.canarySteps | nindent 8 }}
   selector:
     matchLabels:
       {{- include "frontend.selectorLabels" . | nindent 6 }}
