@@ -7,6 +7,7 @@ metadata:
     {{- include "frontend.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit | default 3 }}
   strategy:
     canary:
       maxSurge: {{ .Values.rollout.canaryMaxSurge | default 0 }}
