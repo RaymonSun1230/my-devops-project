@@ -21,7 +21,7 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "frontend.fullname" $ }}
+                name: {{ include "frontend.fullname" $ }}{{ if and $.Values.rollout.enabled $.Values.rollout.trafficRouting }}-stable{{ end }}
                 port:
                   number: {{ $.Values.service.port }}
           {{- end }}

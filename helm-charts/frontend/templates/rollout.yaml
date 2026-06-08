@@ -12,12 +12,13 @@ spec:
       maxSurge: {{ .Values.rollout.canaryMaxSurge | default "25%" }}
       maxUnavailable: {{ .Values.rollout.canaryMaxUnavailable | default 0 }}
       dynamicStableScale: {{ .Values.rollout.dynamicStableScale | default false }}
-      steps:
-        {{- toYaml .Values.rollout.canarySteps | nindent 8 }}
       {{- if .Values.rollout.trafficRouting }}
+      canaryService: {{ include "frontend.fullname" . }}-canary
+      stableService: {{ include "frontend.fullname" . }}-stable
       trafficRouting:
         {{- toYaml .Values.rollout.trafficRouting | nindent 8 }}
       {{- end }}
+      steps:
   selector:
     matchLabels:
       {{- include "frontend.selectorLabels" . | nindent 6 }}

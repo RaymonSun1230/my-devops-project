@@ -1,7 +1,8 @@
+{{- if and .Values.rollout.enabled .Values.rollout.trafficRouting }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "frontend.fullname" . }}{{ if and .Values.rollout.enabled .Values.rollout.trafficRouting }}-stable{{ end }}
+  name: {{ include "frontend.fullname" . }}-canary
   labels:
     {{- include "frontend.labels" . | nindent 4 }}
 spec:
@@ -13,3 +14,4 @@ spec:
       name: http
   selector:
     {{- include "frontend.selectorLabels" . | nindent 4 }}
+{{- end }}

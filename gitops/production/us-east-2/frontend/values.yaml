@@ -12,6 +12,10 @@ rollout:
     - setWeight: 25
     - pause: {}
     - setWeight: 100
+  trafficRouting:
+    alb:
+      ingress: frontend
+      servicePort: 7000
 ingress:
   enabled: true
   annotations:
