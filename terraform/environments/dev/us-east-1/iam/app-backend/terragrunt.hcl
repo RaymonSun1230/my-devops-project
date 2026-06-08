@@ -18,7 +18,7 @@ dependency "s3" {
 inputs = merge(
   include.envcommon.inputs,
   {
-    role_name = "app-backend-${include.envcommon.locals.environment}"
+    name = "app-backend-${include.envcommon.locals.environment}"
 
     assume_role_condition_test = "StringLike"
 
