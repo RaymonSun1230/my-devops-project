@@ -29,23 +29,16 @@ inputs = merge(
       }
     }
 
-    inline_policies = {
-      S3DataSourceRead = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-          {
-            Effect = "Allow"
-            Action = [
-              "s3:GetObject",
-              "s3:ListBucket"
-            ]
-            Resource = [
-              dependency.s3.outputs.s3_bucket_arn,
-              "${dependency.s3.outputs.s3_bucket_arn}/*"
-            ]
-          }
+    create_inline_policy = true
+
+    inline_policy_permissions = {
+      s3_read = {
+        actions = ["s3:GetObject", "s3:ListBucket"]
+        resources = [
+          dependency.s3.outputs.s3_bucket_arn,
+          "${dependency.s3.outputs.s3_bucket_arn}/*"
         ]
-      })
+      }
     }
   }
 )
