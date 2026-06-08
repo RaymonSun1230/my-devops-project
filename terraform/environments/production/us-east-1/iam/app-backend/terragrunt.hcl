@@ -41,8 +41,8 @@ inputs = merge(
                 "s3:ListBucket"
               ]
               Resource = [
-                dependency.s3.outputs.arn,
-                "${dependency.s3.outputs.arn}/*"
+                dependency.s3.outputs.s3_bucket_arn,
+                "${dependency.s3.outputs.s3_bucket_arn}/*"
               ]
             }
           ]
