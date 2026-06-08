@@ -45,7 +45,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ECR_REGISTRY: 385551094956.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REGISTRY_US_EAST_1: 385551094956.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REGISTRY_US_EAST_2: 385551094956.dkr.ecr.us-east-2.amazonaws.com
   BACKEND_IMAGE: app-backend
   FRONTEND_IMAGE: app-frontend
 
@@ -178,14 +179,34 @@ jobs:
           ignore-unfixed: true
           severity: CRITICAL,HIGH
 
-      - name: Push Docker image
+      - name: Push Docker image to us-east-1
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           push: true
           platforms: linux/arm64
           tags: |
-            ${{ env.ECR_REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.IMAGE_TAG }}
+            ${{ env.ECR_REGISTRY_US_EAST_1 }}/${{ matrix.image }}:${{ steps.tag.outputs.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Configure AWS credentials (us-east-2)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: us-east-2
+
+      - name: Login to Amazon ECR (us-east-2)
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push Docker image to us-east-2
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          platforms: linux/arm64
+          tags: |
+            ${{ env.ECR_REGISTRY_US_EAST_2 }}/${{ matrix.image }}:${{ steps.tag.outputs.IMAGE_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -256,8 +277,8 @@ jobs:
 
             | Component | Image |
             |---|---|
-            | Backend | `${{ env.ECR_REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}` |
-            | Frontend | `${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}` |
+            | Backend | `${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}` |
+            | Frontend | `${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.IMAGE_TAG }}` |
 
             After merging, run the [CD workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/cd.yaml) to deploy and promote.
           labels: automated-deploy
