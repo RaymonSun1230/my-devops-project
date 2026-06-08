@@ -217,6 +217,28 @@ This project is an **enterprise-style platform engineering and GitOps demonstrat
 
 The current implementation prioritizes **platform architecture, GitOps, and delivery automation** over internet-facing production hardening — all of which are addressed in the roadmap below.
 
+
+---
+
+## Screenshots
+
+*Add real screenshots here to demonstrate the platform is running:*
+
+| Screenshot | What to Capture |
+|-----------|----------------|
+| Screenshot | What to Capture |
+|-----------|----------------|
+| ![ArgoCD Apps](docs/screenshots/argocd-apps.png) | ArgoCD dashboard — all apps Healthy + Synced |
+| ![Blue-Green Before Promote](docs/screenshots/rollout-bluegreen-before.png) | Backend Blue-Green before promote — preview pods ready, waiting for promotion |
+| ![Canary Before Promote](docs/screenshots/rollout-canary-before.png) | Frontend Canary before promote — 25% canary, waiting at pause gate |
+| ![Frontend Rollout](docs/screenshots/rollout-canary.png) | `kubectl argo rollouts get rollout frontend` — canary rollout |
+| ![Backend Rollout](docs/screenshots/rollout-bluegreen.png) | `kubectl argo rollouts get rollout backend` — blue-green rollout |
+| ![CI Pipeline](docs/screenshots/gh-actions-ci.png) | GitHub Actions — CI pipeline success |
+| ![CD Pipeline](docs/screenshots/gh-actions-cd.png) | GitHub Actions — CD pipeline success |
+| ![Kubectl Pods](docs/screenshots/kubectl-pods.png) | `kubectl get pods -A` showing all namespaces |
+| ![AWS ALB](docs/screenshots/aws-alb.png) | AWS Console — ALB with target groups |
+| ![AWS EKS](docs/screenshots/aws-eks.png) | AWS Console — EKS cluster overview |
+
 ---
 
 ## Why These Technologies?
@@ -270,25 +292,6 @@ Without Terragrunt, you'd need wrapper scripts or duplicated Terraform configs a
 | **OIDC to AWS** | No long-lived AWS credentials in GitHub Secrets — `aws-actions/configure-aws-credentials` with OIDC |
 | **Matrix builds** | Backend + Frontend built in parallel via `strategy.matrix` |
 | **workflow_dispatch** | Manual gates for higher environments — no accidental deployments to production |
-
----
-
-## Screenshots
-
-*Add real screenshots here to demonstrate the platform is running:*
-
-| Screenshot | What to Capture |
-|-----------|----------------|
-| `docs/screenshots/argocd-apps.png` | ArgoCD dashboard — all apps Healthy + Synced |
-| `docs/screenshots/rollout-bluegreen-before.png` | Backend Blue-Green before promote — preview pods ready, waiting for promotion |
-| `docs/screenshots/rollout-canary-before.png` | Frontend Canary before promote — 25% canary, waiting at pause gate |
-| `docs/screenshots/rollout-canary.png` | `kubectl argo rollouts get rollout frontend` — canary rollout |
-| `docs/screenshots/rollout-bluegreen.png` | `kubectl argo rollouts get rollout backend` — blue-green rollout |
-| `docs/screenshots/gh-actions-ci.png` | GitHub Actions — CI pipeline success |
-| `docs/screenshots/gh-actions-cd.png` | GitHub Actions — CD pipeline success |
-| `docs/screenshots/kubectl-pods.png` | `kubectl get pods -A` showing all namespaces |
-| `docs/screenshots/aws-alb.png` | AWS Console — ALB with target groups |
-| `docs/screenshots/aws-eks.png` | AWS Console — EKS cluster overview |
 
 ---
 
