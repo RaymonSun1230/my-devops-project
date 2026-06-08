@@ -223,8 +223,6 @@ The current implementation prioritizes **platform architecture, GitOps, and deli
 ## Screenshots
 
 *Add real screenshots here to demonstrate the platform is running:*
-
-| Screenshot | What to Capture |
 |-----------|----------------|
 | Screenshot | What to Capture |
 |-----------|----------------|
