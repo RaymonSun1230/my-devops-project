@@ -12,13 +12,11 @@ terraform {
 }
 
 locals {
-  # Hard-code ALB DNS/zone IDs from the deployed production ALBs.
-  # These are outputs from the ingress controller — update after ALB is created.
   primary_alb_dns     = "k8s-myapp-frontend-a0da1ec5d1-48248821.us-east-1.elb.amazonaws.com"
-  primary_alb_zone_id = "Z35SXDOTRQ7X7K" # us-east-1 ALB canonical zone ID
+  primary_alb_zone_id = "Z35SXDOTRQ7X7K"
 
-  secondary_alb_dns     = "k8s-myapp-frontend-yyyyyyyyyy-987654321.us-east-2.elb.amazonaws.com"
-  secondary_alb_zone_id = "Z3AADJGX6KTTL2" # us-east-2 ALB canonical zone ID
+  secondary_alb_dns     = "k8s-myapp-frontend-a0da1ec5d1-343983819.us-east-2.elb.amazonaws.com"
+  secondary_alb_zone_id = "Z3AADJGX6KTTL2"
 }
 
 dependency "acm_primary" {
