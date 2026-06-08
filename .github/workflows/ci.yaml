@@ -246,8 +246,8 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           commit-message: "chore: update image tags to ${{ steps.tag.outputs.IMAGE_TAG }}"
-          committer: "CI Bot <ci-bot@company.com>"
-          author: "CI Bot <ci-bot@company.com>"
+          committer: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+          author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
           branch: ci/update-tags-${{ steps.tag.outputs.IMAGE_TAG }}
           base: ${{ needs.resolve-branch.outputs.branch }}
           title: "chore: update image tags to ${{ steps.tag.outputs.IMAGE_TAG }}"

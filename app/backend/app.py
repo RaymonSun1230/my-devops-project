@@ -6,12 +6,15 @@ import boto3
 from flask import Flask, jsonify
 from botocore.exceptions import ClientError
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 
-# Suppress health check logs
+# Suppress only health check logs (keep /api/data visible)
 class HealthCheckFilter(logging.Filter):
     def filter(self, record):
-        return not ('GET /health' in record.getMessage() or 'GET /api/data' in record.getMessage())
+        return 'GET /health' not in record.getMessage()
 logging.getLogger('werkzeug').addFilter(HealthCheckFilter())
 
 S3_BUCKET = os.environ.get('S3_BUCKET', 'my-csv-bucket')
@@ -29,25 +32,39 @@ if AWS_ACCESS_KEY and AWS_SECRET_KEY:
 if AWS_ENDPOINT_URL:
     s3_kwargs['endpoint_url'] = AWS_ENDPOINT_URL
 
+logger.info('Initializing S3 client for region=%s', AWS_REGION)
+logger.info('S3_BUCKET=%s S3_KEY=%s', S3_BUCKET, S3_KEY)
+if AWS_ACCESS_KEY:
+    logger.info('Using explicit AWS access key')
+else:
+    logger.info('No explicit AWS keys - relying on IRSA / default chain')
+
 s3_client = boto3.client('s3', **s3_kwargs)
 
 def read_csv_from_s3(bucket, key):
     try:
+        logger.info('Reading s3://%s/%s', bucket, key)
         obj = s3_client.get_object(Bucket=bucket, Key=key)
         data = obj['Body'].read().decode('utf-8')
         csv_reader = csv.DictReader(io.StringIO(data))
-        return list(csv_reader)
+        rows = list(csv_reader)
+        logger.info('Read %d rows from S3', len(rows))
+        return rows
     except ClientError as e:
-        if e.response['Error']['Code'] == 'NoSuchKey':
+        code = e.response['Error']['Code']
+        logger.error('S3 ClientError: %s - %s', code, e)
+        if code == 'NoSuchKey':
             return []
         raise e
 
 @app.route('/api/data', methods=['GET'])
 def get_data():
     try:
+        logger.info('GET /api/data called')
         rows = read_csv_from_s3(S3_BUCKET, S3_KEY)
         return jsonify(rows)
     except Exception as e:
+        logger.error('GET /api/data error: %s', e, exc_info=True)
         return jsonify({'error': str(e)}), 500
     
 @app.route("/health")
