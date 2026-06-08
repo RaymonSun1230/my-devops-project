@@ -1,4 +1,5 @@
 image:
+  repository: 385551094956.dkr.ecr.us-east-2.amazonaws.com/app-backend
   tag: v20260608-aa85503
 autoscaling:
   enabled: true
@@ -10,7 +11,7 @@ rollout:
   autoPromotionEnabled: false
 serviceAccount:
   annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::385551094956:role/app-backend-production-20260608024037872900000001"
+    eks.amazonaws.com/role-arn: "arn:aws:iam::385551094956:role/app-backend-production-20260608131841991700000001 "
 env:
   - name: S3_BUCKET
     value: "385551094956-us-east-2-data-source-production"

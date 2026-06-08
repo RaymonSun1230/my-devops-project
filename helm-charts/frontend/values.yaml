@@ -1,6 +1,5 @@
 replicaCount: 4
 image:
-  repository: 385551094956.dkr.ecr.us-east-1.amazonaws.com/app-frontend
   pullPolicy: IfNotPresent
 service:
   type: ClusterIP
@@ -38,7 +37,7 @@ ingress:
           pathType: Prefix
 env:
   - name: BACKEND_URL
-    value: "http://backend:7001"
+    value: "http://backend-active:7001"
 autoscaling:
   enabled: false
   minReplicas: 2

@@ -27,7 +27,14 @@ on:
           - all
           - vpc
           - eks
-          - iam
+          - iam/alb-controller
+          - iam/app-backend
+          - s3/data-source
+          - ecr/app-frontend
+          - ecr/app-backend
+          - acm
+          - route53
+          - argocd
         default: all
 
 permissions: 
