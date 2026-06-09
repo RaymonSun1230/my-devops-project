@@ -12,7 +12,7 @@ dependency "s3_dest" {
 }
 
 dependency "iam_s3_replication" {
-  config_path = "../../iam/s3-replication"
+  config_path = "../../../global/iam/s3-replication"
 }
 
 inputs = merge(
