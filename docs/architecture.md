@@ -42,8 +42,11 @@ User → Route53 → ALB (Internet-facing) → EKS
 | **ALB** | Internet-facing ingress, managed by AWS LB Controller |
 | **EKS** | Kubernetes 1.35, ARM64 (t4g.small), managed node groups |
 | **ECR** | Container registry for app-backend & app-frontend images |
-| **S3** | CSV data storage per environment, Terraform remote state |
+| **S3** | CSV data storage per environment, Terraform remote state; cross-region replication (production) |
 | **IAM (IRSA)** | Pod-level AWS access via OIDC — no static credentials |
+| **IAM (S3 Replication)** | Cross-region replication role (production, us-east-1 → us-east-2) |
+| **ACM** | SSL/TLS certificates for custom domain (production only) |
+| **Route53** | DNS routing, health checks, failover (production only) |
 
 ### Kubernetes Namespaces
 

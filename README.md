@@ -43,6 +43,10 @@ graph TB
         HC2[Health Check<br/>us-east-2 ALB]
     end
 
+    subgraph "Global Services (per-environment)"
+        IAM_S3REP[IAM Role<br/>S3 Replication<br/>Cross-region sync]
+    end
+
     subgraph "Region: us-east-1 (Primary / Active)"
         ALB1[AWS ALB<br/>HTTPS :443]
         ECR1[ECR<br/>app-backend<br/>app-frontend]
@@ -91,6 +95,9 @@ graph TB
     FE2 -->|HTTP /api/data| BE2
     BE2 -->|boto3| S32
 
+    S31 -.->|"Cross-region replication<br/>S3 Replication"| S32
+    IAM_S3REP -.->|"Trust Policy"| S31
+
     Git[GitHub] -->|Webhook| ARGO1
     Git -->|Webhook| ARGO2
     CI -->|Push| ECR1
@@ -106,10 +113,12 @@ graph TB
     classDef aws fill:#FF9900,color:#000
     classDef k8s fill:#326CE5,color:#fff
     classDef dns fill:#8B5CF6,color:#fff
+    classDef global fill:#0DCAF0,color:#000
 
     class ECR1,ECR2,S31,S32,IAM1,IAM2 aws
     class ARGO1,ROLL1,ALBC1,FE1,BE1,ARGO2,ROLL2,ALBC2,FE2,BE2 k8s
     class R53,HC1,HC2 dns
+    class IAM_S3REP global
 ```
 
 ---
@@ -266,10 +275,9 @@ HTTPS, custom domain, and multi-region DNS failover are already live at [`https:
 
 ## Screenshots
 
-*Add real screenshots here to demonstrate the platform is running:*
-
 | Screenshot | What to Capture |
 |-----------|----------------|
+| ![App Homepage](docs/screenshots/app-homepage.png) | Browser — `cloudnativeops.online` showing the CSV data viewer |
 | ![ArgoCD Apps](docs/screenshots/argocd-apps.png) | ArgoCD dashboard — all apps Healthy + Synced |
 | ![Blue-Green Before Promote](docs/screenshots/rollout-bluegreen-before.png) | Backend Blue-Green before promote — preview pods ready, waiting for promotion |
 | ![Canary Before Promote](docs/screenshots/rollout-canary-before.png) | Frontend Canary before promote — 25% canary, waiting at pause gate |
@@ -278,6 +286,7 @@ HTTPS, custom domain, and multi-region DNS failover are already live at [`https:
 | ![CI Pipeline](docs/screenshots/gh-actions-ci.png) | GitHub Actions — CI pipeline success |
 | ![CD Pipeline](docs/screenshots/gh-actions-cd.png) | GitHub Actions — CD pipeline success |
 | ![Kubectl Pods](docs/screenshots/kubectl-pods.png) | `kubectl get pods -A` showing all namespaces |
+| ![AWS Route53 Health Checks](docs/screenshots/aws-route53-healthchecks.png) | AWS Console — Route53 health checks for us-east-1 and us-east-2, both healthy |
 | ![AWS ALB](docs/screenshots/aws-alb.png) | AWS Console — ALB with target groups |
 | ![AWS EKS](docs/screenshots/aws-eks.png) | AWS Console — EKS cluster overview |
 

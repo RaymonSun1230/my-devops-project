@@ -17,8 +17,12 @@ All AWS infrastructure is provisioned with **Terragrunt** (a thin wrapper around
 | **VPC** | `terraform-aws-modules/vpc/aws` (6.6.1) | Public + private subnets, NAT Gateway, DNS hostnames |
 | **EKS** | `terraform-aws-modules/eks/aws` (21.23.0) | Kubernetes 1.35, managed node groups (t4g.small, ARM64), IRSA enabled |
 | **ECR** | `terraform-aws-modules/ecr/aws` (3.2.0) | Per-app repositories, lifecycle policy (keep last 50 images) |
-| **S3** | `terraform-aws-modules/s3-bucket/aws` (4.6.0) | Data source bucket per environment |
-| **IAM (IRSA)** | `terraform-aws-modules/iam/aws` (6.6.1) | Roles for ALB Controller, Backend S3 access, GitHub Actions OIDC |
+| **S3** | `terraform-aws-modules/s3-bucket/aws` (4.6.0) | Data source bucket per environment; cross-region replication (production) |
+| **IAM — ALB Controller** | `terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts` (6.6.1) | IRSA role for AWS Load Balancer Controller |
+| **IAM — Backend S3** | `terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts` (6.6.1) | IRSA role for backend pod S3 access |
+| **IAM — S3 Replication** | `terraform-aws-modules/iam/aws//modules/iam-role` (6.6.1) | Cross-region replication role (production only) |
+| **ACM** | `terraform-aws-modules/acm/aws` (5.2.0) | SSL/TLS certificates (production only) |
+| **Route53** | Custom module (`modules/route53`) | DNS records, health checks, failover routing (production only) |
 | **Argo CD** | Custom module (`modules/argocd`) | Helm-deployed Argo CD with EKS authentication |
 
 ---
@@ -32,31 +36,60 @@ terraform/
 │   ├── vpc.hcl                 #   terraform source + default inputs
 │   ├── eks.hcl                 #   cluster config + node groups
 │   ├── ecr.hcl                 #   repo + lifecycle policy
-│   ├── iam.hcl                 #   IRSA role template
+│   ├── iam.hcl                 #   IAM role template (iam-role submodule)
+│   ├── iam-service-accounts.hcl #   IRSA role template (iam-role-for-service-accounts)
 │   ├── s3.hcl                  #   bucket config
+│   ├── route53.hcl             #   DNS config (production only)
+│   ├── acm.hcl                 #   SSL certificate config (production only)
 │   └── argocd.hcl              #   ArgoCD Helm deployment
 ├── modules/
-│   └── argocd/                 #   Custom Terraform module
-│       ├── main.tf             #     helm_release for argo-cd
+│   ├── argocd/                 #   Custom Terraform module
+│   │   ├── main.tf             #     helm_release for argo-cd
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   └── route53/                #   Custom Terraform module
+│       ├── main.tf
 │       ├── variables.tf
 │       └── outputs.tf
 └── environments/               # Per-environment overrides
     ├── dev/
+    │   ├── global/
+    │   │   └── iam/                     # Global services (IAM)
+    │   │       ├── alb-controller/terragrunt.hcl
+    │   │       └── app-backend/terragrunt.hcl
     │   └── us-east-1/
     │       ├── vpc/terragrunt.hcl      # include envcommon + override CIDRs
     │       ├── eks/terragrunt.hcl
     │       ├── ecr/app-backend/terragrunt.hcl
     │       ├── ecr/app-frontend/terragrunt.hcl
-    │       ├── iam/alb-controller/terragrunt.hcl
-    │       ├── iam/app-backend/terragrunt.hcl
     │       ├── s3/data-source/terragrunt.hcl
     │       └── argocd/terragrunt.hcl
     ├── test/
     ├── staging/
     ├── perf/
     └── production/
+        ├── global/
+        │   ├── iam/                     # Global IAM roles (merged across regions)
+        │   │   ├── alb-controller/terragrunt.hcl    # Dual-region EKS OIDC trust
+        │   │   ├── app-backend/terragrunt.hcl       # Dual-region EKS + S3
+        │   │   └── s3-replication/terragrunt.hcl    # Cross-region replication role
+        │   └── route53/terragrunt.hcl               # DNS records (production)
         ├── us-east-1/
+        │   ├── vpc/terragrunt.hcl
+        │   ├── eks/terragrunt.hcl
+        │   ├── ecr/app-backend/terragrunt.hcl
+        │   ├── ecr/app-frontend/terragrunt.hcl
+        │   ├── acm/terragrunt.hcl
+        │   ├── s3/data-source/terragrunt.hcl
+        │   └── argocd/terragrunt.hcl
         └── us-east-2/
+            ├── vpc/terragrunt.hcl
+            ├── eks/terragrunt.hcl
+            ├── ecr/app-backend/terragrunt.hcl
+            ├── ecr/app-frontend/terragrunt.hcl
+            ├── acm/terragrunt.hcl
+            ├── s3/data-source/terragrunt.hcl
+            └── argocd/terragrunt.hcl
 ```
 
 ### How it works
@@ -146,28 +179,59 @@ remote_state {
 
 ## Provisioning Order
 
-Resources are provisioned in dependency order:
+Resources are provisioned in dependency order. Global services (IAM, Route53) are managed per-environment but outside region folders:
 
 ```
-1. VPC          (no dependencies)
-2. EKS          (depends on VPC)
-3. ECR          (no dependencies)
-4. S3           (no dependencies)
-5. IAM          (depends on EKS — needs OIDC provider)
-6. ArgoCD       (depends on EKS)
+ 1. VPC          (no dependencies)
+ 2. EKS          (depends on VPC)
+ 3. ECR          (no dependencies)
+ 4. ACM          (no dependencies, production only)
+ 5. S3           (no dependencies)
+ 6. IAM (IRSA)   (depends on EKS — needs OIDC provider)
+ 7. IAM (S3 Rep) (no dependencies, production only)
+ 8. Route53      (depends on ACM, production only)
+ 9. ArgoCD       (depends on EKS)
 ```
+
+### Non-production (dev / test / staging / perf)
 
 ```bash
 # Plan all resources
-cd terraform/environments/dev/us-east-1
+cd terraform/environments/dev
 terragrunt run-all plan
 
 # Apply all resources
 terragrunt run-all apply
 
 # Apply a specific module
-cd terraform/environments/dev/us-east-1/eks
+cd terraform/environments/dev/global/iam/alb-controller
 terragrunt apply
+```
+
+### Production
+
+Production uses two regions (us-east-1 primary, us-east-2 DR) with global IAM and Route53:
+
+```bash
+# 1. Region-specific resources (in order)
+cd terraform/environments/production/us-east-1/vpc && terragrunt apply
+cd terraform/environments/production/us-east-2/vpc && terragrunt apply
+cd terraform/environments/production/us-east-1/eks && terragrunt apply
+cd terraform/environments/production/us-east-2/eks && terragrunt apply
+
+# 2. Global resources
+cd terraform/environments/production/global/iam/s3-replication && terragrunt apply
+cd terraform/environments/production/global/iam/alb-controller && terragrunt apply
+cd terraform/environments/production/global/iam/app-backend && terragrunt apply
+cd terraform/environments/production/global/route53 && terragrunt apply
+
+# 3. Resources that depend on IAM
+cd terraform/environments/production/us-east-1/s3/data-source && terragrunt apply
+cd terraform/environments/production/us-east-2/s3/data-source && terragrunt apply
+
+# 4. ArgoCD (depends on EKS)
+cd terraform/environments/production/us-east-1/argocd && terragrunt apply
+cd terraform/environments/production/us-east-2/argocd && terragrunt apply
 ```
 
 ---

@@ -55,8 +55,11 @@ graph TB
                 ECR_BE["ECR<br/>app-backend"]
                 ECR_FE["ECR<br/>app-frontend"]
                 S3_DATA["S3<br/>data-source bucket<br/>CSV file storage"]
+                S3_REP["S3 Replication<br/>Cross-region sync<br/>us-east-1 → us-east-2"]
                 IAM_IRSA["IAM Roles<br/>IRSA for Service Accounts"]
+                IAM_S3REP["IAM Role<br/>S3 Replication"]
                 R53["Route 53<br/>DNS (production)"]
+                ACM["ACM<br/>SSL/TLS (production)"]
             end
 
             ALB["AWS ALB<br/>HTTPS :443"]
@@ -78,6 +81,8 @@ graph TB
     ALB -->|"Ingress Rule: /*"| FE_STABLE
     FE_POD_V1 -->|"GET /api/data"| BE_ACTIVE
     BE_POD_V1 -->|"boto3 get_object()"| S3_DATA
+    S3_DATA -.->|"Cross-region replication"| S3_REP
+    IAM_S3REP -.->|"Trust Policy"| S3_REP
 
     %% GitOps Flow
     DEV -->|"git push"| GIT
@@ -101,6 +106,9 @@ graph TB
     TF_WF -->|"terraform apply"| ECR_BE
     TF_WF -->|"terraform apply"| S3_DATA
     TF_WF -->|"terraform apply"| IAM_IRSA
+    TF_WF -->|"terraform apply"| IAM_S3REP
+    TF_WF -->|"terraform apply"| ACM
+    TF_WF -->|"terraform apply"| R53
 
     %% IRSA Trust
     IAM_IRSA -.->|"OIDC Trust"| BE_POD_V1
@@ -113,7 +121,7 @@ graph TB
     classDef git fill:#333,color:#fff,stroke:#666
     classDef user fill:#28A745,color:#fff,stroke:#1E7E34
 
-    class VPC,PUB_SUB,PRIV_SUB,NAT,IGW,ALB,S3_DATA,ECR_BE,ECR_FE,IAM_IRSA,R53 aws
+    class VPC,PUB_SUB,PRIV_SUB,NAT,IGW,ALB,S3_DATA,S3_REP,ECR_BE,ECR_FE,IAM_IRSA,IAM_S3REP,R53,ACM aws
     class ARGOCD,ROLLOUTS,ALBC,FE_STABLE,FE_CANARY,BE_ACTIVE,BE_PREVIEW k8s
     class CI_WF,CD_WF,TF_WF cicd
     class GIT,BRANCHES git
@@ -133,22 +141,30 @@ graph TD
         EKS_HCL["eks.hcl"]
         ECR_HCL["ecr.hcl"]
         IAM_HCL["iam.hcl"]
+        IAM_SA_HCL["iam-service-accounts.hcl"]
         S3_HCL["s3.hcl"]
+        ACM_HCL["acm.hcl"]
+        R53_HCL["route53.hcl"]
         ARGOCD_HCL["argocd.hcl"]
     end
 
-    subgraph "Environment: dev/us-east-1"
+    subgraph "Environment Config"
         ENV["environment.hcl<br/>account_id + env name"]
-        REGION["region.hcl<br/>aws_region"]
+        REGION["region.hcl<br/>aws_region (per region)"]
     end
 
-    subgraph "Provisioned Resources"
+    subgraph "Global Resources (per-environment)"
+        IAM_ALB["IAM Role<br/>ALB Controller IRSA<br/><i>dev/global/iam/alb-controller</i>"]
+        IAM_BE["IAM Role<br/>Backend S3 IRSA<br/><i>dev/global/iam/app-backend</i>"]
+        IAM_S3REP["IAM Role<br/>S3 Replication<br/><i>production/global/iam/s3-replication</i>"]
+        R53_RES["Route53<br/>DNS Records<br/><i>production/global/route53</i>"]
+    end
+
+    subgraph "Regional Resources (us-east-1 / us-east-2)"
         VPC_RES["VPC<br/>Subnets + NAT + IGW"]
         EKS_RES["EKS Cluster<br/>Node Groups + Addons"]
         ECR_RES["ECR Repos<br/>app-backend + app-frontend"]
-        IAM_ALB["IAM Role<br/>ALB Controller IRSA"]
-        IAM_BE["IAM Role<br/>Backend S3 IRSA"]
-        IAM_GH["IAM Role<br/>GitHub Actions OIDC"]
+        ACM_RES["ACM<br/>SSL Certificates"]
         S3_RES["S3 Bucket<br/>data-source"]
         ARGOCD_RES["Argo CD<br/>Helm Release"]
     end
@@ -160,30 +176,40 @@ graph TD
     ROOT --> EKS_HCL
     ROOT --> ECR_HCL
     ROOT --> IAM_HCL
+    ROOT --> IAM_SA_HCL
     ROOT --> S3_HCL
+    ROOT --> ACM_HCL
+    ROOT --> R53_HCL
     ROOT --> ARGOCD_HCL
 
     VPC_HCL --> VPC_RES
-    EKS_HCL -->|"depends on VPC"| EKS_RES
+    EKS_HCL -->|"depends_on: VPC"| EKS_RES
     ECR_HCL --> ECR_RES
-    IAM_HCL -->|"depends on EKS (OIDC)"| IAM_ALB
-    IAM_HCL -->|"depends on EKS (OIDC)"| IAM_BE
-    IAM_HCL --> IAM_GH
-    S3_HCL --> S3_RES
-    ARGOCD_HCL -->|"depends on EKS"| ARGOCD_RES
+
+    IAM_SA_HCL -->|"depends_on: EKS (OIDC)"| IAM_ALB
+    IAM_SA_HCL -->|"depends_on: EKS (OIDC)"| IAM_BE
+    IAM_HCL --> IAM_S3REP
+    ACM_HCL --> ACM_RES
+    R53_HCL -->|"depends_on: ACM"| R53_RES
+    S3_HCL -->|"prod: depends_on IAM S3 Rep"| S3_RES
+    ARGOCD_HCL -->|"depends_on: EKS"| ARGOCD_RES
 
     VPC_RES -.-> EKS_RES
     EKS_RES -.-> IAM_ALB
     EKS_RES -.-> IAM_BE
     EKS_RES -.-> ARGOCD_RES
+    IAM_S3REP -.-> S3_RES
+    ACM_RES -.-> R53_RES
 
     classDef input fill:#6F42C1,color:#fff
     classDef common fill:#D63384,color:#fff
-    classDef resource fill:#0D6EFD,color:#fff
+    classDef global fill:#0DCAF0,color:#000
+    classDef regional fill:#0D6EFD,color:#fff
 
     class ENV,REGION input
-    class VPC_HCL,EKS_HCL,ECR_HCL,IAM_HCL,S3_HCL,ARGOCD_HCL common
-    class VPC_RES,EKS_RES,ECR_RES,IAM_ALB,IAM_BE,IAM_GH,S3_RES,ARGOCD_RES resource
+    class VPC_HCL,EKS_HCL,ECR_HCL,IAM_HCL,IAM_SA_HCL,S3_HCL,ACM_HCL,R53_HCL,ARGOCD_HCL common
+    class IAM_ALB,IAM_BE,IAM_S3REP,R53_RES global
+    class VPC_RES,EKS_RES,ECR_RES,ACM_RES,S3_RES,ARGOCD_RES regional
 ```
 
 ---
