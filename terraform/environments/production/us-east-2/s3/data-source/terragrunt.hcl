@@ -11,5 +11,9 @@ inputs = merge(
   include.envcommon.inputs,
   {
     bucket = "${include.envcommon.locals.account_id}-${include.envcommon.locals.aws_region}-data-source-${include.envcommon.locals.environment}"
+
+    versioning = {
+      status = true
+    }
   }
 )
