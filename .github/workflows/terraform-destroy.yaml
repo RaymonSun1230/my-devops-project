@@ -14,11 +14,12 @@ on:
           - production
         default: dev
       aws_region:
-        description: "AWS Region"
+        description: "AWS Region (use 'global' for IAM, Route53)"
         type: choice
         options:
           - us-east-1
           - us-east-2
+          - global
         default: us-east-1
       resources:
         description: "Terraform Modules to Target"
@@ -29,6 +30,7 @@ on:
           - eks
           - iam/alb-controller
           - iam/app-backend
+          - iam/s3-replication
           - s3/data-source
           - ecr/app-frontend
           - ecr/app-backend
@@ -68,7 +70,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
-          aws-region: ${{ inputs.aws_region }}
+          aws-region: ${{ inputs.aws_region == 'global' && 'us-east-1' || inputs.aws_region }}
 
       - name: Setup Terraform Plugin Cache
         run: mkdir -p /home/runner/.terraform.d/plugin-cache
@@ -85,13 +87,20 @@ jobs:
       - name: Resolve target directory
         id: resolve
         run: |
+          # Use 'global/' for global resources, otherwise use the selected region
+          if [[ "${{ inputs.aws_region }}" == "global" ]]; then
+            TARGET_REGION="global"
+          else
+            TARGET_REGION="${{ inputs.aws_region }}"
+          fi
+
           PLAN_FILE="${GITHUB_WORKSPACE}/tfplan-destroy-${{ github.run_id }}"
           if [[ "${{ inputs.resources }}" == "all" ]]; then
-            echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}" >> "$GITHUB_OUTPUT"
+            echo "target_dir=terraform/environments/${{ inputs.environment }}/$TARGET_REGION" >> "$GITHUB_OUTPUT"
             echo "tg_command=run --all" >> "$GITHUB_OUTPUT"
             echo "plan_out_flag=" >> "$GITHUB_OUTPUT"
           else
-            echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}" >> "$GITHUB_OUTPUT"
+            echo "target_dir=terraform/environments/${{ inputs.environment }}/$TARGET_REGION/${{ inputs.resources }}" >> "$GITHUB_OUTPUT"
             echo "tg_command=" >> "$GITHUB_OUTPUT"
             echo "plan_out_flag=-out=$PLAN_FILE" >> "$GITHUB_OUTPUT"
             echo "plan_file=$PLAN_FILE" >> "$GITHUB_OUTPUT"
@@ -148,7 +157,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
-          aws-region: ${{ inputs.aws_region }}
+          aws-region: ${{ inputs.aws_region == 'global' && 'us-east-1' || inputs.aws_region }}
 
       - name: Setup Terraform Plugin Cache
         run: mkdir -p /home/runner/.terraform.d/plugin-cache
@@ -165,12 +174,19 @@ jobs:
       - name: Resolve target directory
         id: resolve
         run: |
+          # Use 'global/' for global resources, otherwise use the selected region
+          if [[ "${{ inputs.aws_region }}" == "global" ]]; then
+            TARGET_REGION="global"
+          else
+            TARGET_REGION="${{ inputs.aws_region }}"
+          fi
+
           if [[ "${{ inputs.resources }}" == "all" ]]; then
-            echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}" >> "$GITHUB_OUTPUT"
+            echo "target_dir=terraform/environments/${{ inputs.environment }}/$TARGET_REGION" >> "$GITHUB_OUTPUT"
             echo "tg_command=run --all" >> "$GITHUB_OUTPUT"
             echo "action=destroy" >> "$GITHUB_OUTPUT"
           else
-            echo "target_dir=terraform/environments/${{ inputs.environment }}/${{ inputs.aws_region }}/${{ inputs.resources }}" >> "$GITHUB_OUTPUT"
+            echo "target_dir=terraform/environments/${{ inputs.environment }}/$TARGET_REGION/${{ inputs.resources }}" >> "$GITHUB_OUTPUT"
             echo "tg_command=" >> "$GITHUB_OUTPUT"
             echo "action=apply tfplan-destroy-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
           fi

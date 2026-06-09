@@ -110,7 +110,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
-          aws-region: ${{ matrix.region }}
+          aws-region: ${{ matrix.region == 'global' && 'us-east-1' || matrix.region }}
 
       - name: Setup Terraform Plugin Cache
         run: mkdir -p ~/.terraform.d/plugin-cache
