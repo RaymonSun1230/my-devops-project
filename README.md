@@ -21,10 +21,7 @@ An **enterprise-style**, multi-environment DevOps platform on **AWS EKS** — de
 - **Fully modular IaC**: Terragrunt DRY pattern with `_envcommon/` reusable modules
 - **CI/CD**: GitHub Actions — lint → test → build → push ECR → ArgoCD sync → rollout promote
 - **Secure**: IRSA (IAM Roles for Service Accounts) via OIDC — no static AWS credentials
-- **Enterprise escape hatch**: `rollout.enabled: false` → standard Kubernetes Deployment
 - **Local dev**: Docker Compose + MinIO (S3-compatible) — no cloud dependency
-
-
 
 ---
 
@@ -184,7 +181,7 @@ my-devops-project/
 |----------|----------|
 | [`docs/architecture.md`](docs/architecture.md) | Application stack, platform architecture, environments |
 | [`docs/gitops.md`](docs/gitops.md) | ArgoCD App-of-Apps, sync waves, multi-source, Helm charts |
-| [`docs/progressive-delivery.md`](docs/progressive-delivery.md) | Blue-Green + Canary strategies, rollback, escape hatch |
+| [`docs/progressive-delivery.md`](docs/progressive-delivery.md) | Blue-Green + Canary strategies, rollback |
 | [`docs/cicd.md`](docs/cicd.md) | CI/CD pipelines, triggers, image tagging, infra workflows |
 | [`docs/terraform.md`](docs/terraform.md) | Terragrunt DRY pattern, modules, remote state, provisioning |
 
@@ -243,7 +240,6 @@ Upload `data.csv` to MinIO `demo-bucket` — the app reads from it just like pro
 | **Blue-Green + Canary** | Backend benefits from atomic cutover; frontend from gradual exposure |
 | **IRSA (not static keys)** | OIDC-based pod identity — no secrets, auto-rotation |
 | **Branch per environment** | `dev → test → staging → perf → main` — isolated promotion |
-| **Escape hatch** | `rollout.enabled: false` falls back to standard Deployment |
 | **MinIO for local dev** | S3-compatible, zero cost, no AWS account needed |
 
 ---
@@ -260,7 +256,7 @@ This project is an **enterprise-style platform engineering and GitOps demonstrat
 - CI/CD automation (GitHub Actions + OIDC to AWS)
 - IRSA-based pod identity (IAM Roles for Service Accounts)
 - Multi-environment governance (5 environments, 2 regions)
-- Helm chart engineering (escape hatches, HPA, probes)
+- Helm chart engineering (HPA, probes)
 
 ### Intentionally Out of Scope
 
@@ -325,7 +321,6 @@ Without Terragrunt, you'd need wrapper scripts or duplicated Terraform configs a
 | **Canary for frontends** | Frontend gets gradual 10%→50%→100% exposure — catch issues before full blast radius |
 | **Built-in rollback** | `kubectl argo rollouts abort` / `undo` — instant revert without re-deploying old manifests |
 | **Promotion gates** | Pause between steps lets you run smoke tests or wait for metrics before proceeding |
-| **Escape hatch** | `rollout.enabled: false` → standard Deployment — no lock-in |
 
 ### Why IRSA (over static IAM credentials)?
 
