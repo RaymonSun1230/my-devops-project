@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://github.com/RaymonSun1230/my-devops-project.git
     targetRevision: HEAD
-    path: gitops/dev
+    path: gitops/perf/us-east-1
     directory:
       recurse: true
   destination:
