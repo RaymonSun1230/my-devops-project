@@ -13,7 +13,7 @@ spec:
     chart: aws-load-balancer-controller
     targetRevision: 1.7.2
     helm:
-      values: |
+      valuesObject:
         clusterName: "demo-app-production"
         region: "us-east-2"
         vpcId: "vpc-044801d75bda3bb9d"

@@ -13,7 +13,7 @@ spec:
     chart: argo-rollouts
     targetRevision: 2.37.0
     helm:
-      values: |
+      valuesObject:
         controller:
           replicas: 1
           resources:
@@ -23,7 +23,9 @@ spec:
             limits:
               cpu: 100m
               memory: 128Mi
-
+          pdb:
+            enabled: true
+            minAvailable: 1
         dashboard:
           enabled: true
           service:
