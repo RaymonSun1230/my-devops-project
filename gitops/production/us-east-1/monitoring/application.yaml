@@ -1,0 +1,170 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  name: monitoring
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 67.0.0
+    helm:
+      valuesObject:
+        fullnameOverride: "prometheus"
+
+        prometheus:
+          enabled: true
+          prometheusSpec:
+            replicas: 1
+            retention: 24h
+            scrapeInterval: 60s
+            evaluationInterval: 60s
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 1Gi
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: gp3
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 1Gi
+            disableCompaction: false
+            enableAdminAPI: false
+            walCompression: true
+            ruleSelectorNilUsesHelmValues: false
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            probeSelectorNilUsesHelmValues: false
+          ingress:
+            enabled: false
+
+        alertmanager:
+          enabled: true
+          alertmanagerSpec:
+            replicas: 1
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                cpu: 100m
+                memory: 128Mi
+            storage:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: gp3
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 1Gi
+
+        grafana:
+          enabled: true
+          replicas: 1
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          testFramework:
+            enabled: false
+          persistence:
+            enabled: true
+            size: 1Gi
+            storageClassName: gp3
+          adminPassword: ""
+          existingSecret: grafana-admin-secret
+          ingress:
+            enabled: false
+          plugins: []
+          defaultDashboardsEnabled: true
+          dashboards:
+            default:
+              enabled: false
+          additionalDataSources: []
+
+        kubeStateMetrics:
+          enabled: true
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 50m
+              memory: 128Mi
+
+        prometheus-node-exporter:
+          enabled: true
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+        prometheus-windows-exporter:
+          enabled: false
+
+        defaultRules:
+          create: true
+          rules:
+            etcd: false
+            kubeControllerManager: false
+            kubeScheduler: false
+            kubeProxy: false
+            configReloaders: false
+            kubernetesApps: true
+            network: true
+            node: true
+            prometheus: true
+            prometheusOperator: true
+            time: true
+
+        kubeEtcd:
+          enabled: false
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeProxy:
+          enabled: false
+        coreDns:
+          enabled: true
+          serviceMonitor:
+            selector:
+              k8s-app: kube-dns
+        kubelet:
+          enabled: true
+        kubeApiServer:
+          enabled: true
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

@@ -1,0 +1,101 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  name: loki
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: loki
+    targetRevision: 6.28.0
+    helm:
+      valuesObject:
+        loki:
+          commonConfig:
+            replication_factor: 1
+          schemaConfig:
+            configs:
+              - from: "2024-01-01"
+                store: tsdb
+                object_store: s3
+                schema: v13
+                index:
+                  prefix: loki_index_
+                  period: 24h
+          storage:
+            type: s3
+            bucketNames:
+              chunks: ""
+              ruler: ""
+              admin: ""
+            s3:
+              s3: null
+              endpoint: null
+              region: us-east-1
+              secretAccessKey: null
+              accessKeyId: null
+          compactor:
+            workingDirectory: /var/loki/compactor
+          ingester:
+            availabilityZone: ""
+        deploymentMode: SingleBinary
+        replicas: 1
+        persistence:
+          enabled: true
+          size: 1Gi
+          storageClass: gp3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        singleBinary:
+          replicas: 1
+
+        gateway:
+          enabled: false
+
+        monitoring:
+          dashboards:
+            enabled: false
+          rules:
+            enabled: false
+          alerts:
+            enabled: false
+          serviceMonitor:
+            enabled: true
+            labels:
+              release: prometheus
+          selfMonitoring:
+            enabled: false
+            tenant:
+              name: self
+          serviceMonitorMetricsInstance: null
+          serviceLogos: []
+          metricsInstance: null
+
+        test:
+          enabled: false
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  name: external-secrets
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://charts.external-secrets.io
+    chart: external-secrets
+    targetRevision: 0.15.0
+    helm:
+      valuesObject:
+        installCRDs: true
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        serviceAccount:
+          create: true
+          name: external-secrets
+        scopedNamespace: ""
+        leaderElect: false
+        extraObjects:
+          - apiVersion: external-secrets.io/v1beta1
+            kind: ClusterSecretStore
+            metadata:
+              name: aws-secrets-manager
+            spec:
+              provider:
+                aws:
+                  service: SecretsManager
+                  region: us-east-1
+                  auth:
+                    jwt:
+                      serviceAccountRef:
+                        name: external-secrets
+                        namespace: external-secrets
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-secrets
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

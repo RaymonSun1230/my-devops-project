@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  name: grafana-external-secret
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/RaymonSun1230/my-devops-project.git
+    targetRevision: HEAD
+    path: gitops/test/us-east-1/grafana-external-secret/resources
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
