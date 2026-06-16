@@ -46,6 +46,7 @@ ingress:
     alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
     alb.ingress.kubernetes.io/healthy-threshold-count: "2"
     alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:385551094956:certificate/c3efffbe-aa6f-426b-b86b-27657555dae8"
+    # alb.ingress.kubernetes.io/wafv2-acl-arn: "<WAF_ARN>"
     alb.ingress.kubernetes.io/subnets: "subnet-09d2cbd4a54837f51,subnet-0b6114244852273a8"
 env:
   - name: BACKEND_URL

@@ -43,6 +43,7 @@ on:
           - ecr/app-backend
           - acm
           - route53
+          - waf
           - argocd
         default: all
 
