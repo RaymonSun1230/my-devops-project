@@ -1,5 +1,5 @@
 terraform {
-  source = "${dirname(find_in_parent_folders("root.hcl"))}/modules//acm"
+  source = "tfr:///terraform-aws-modules/acm/aws?version=~> 5.0"
 }
 
 locals {
@@ -12,4 +12,12 @@ locals {
 inputs = {
   domain_name               = "cloudnativeops.online"
   subject_alternative_names = ["www.cloudnativeops.online"]
+
+  validation_method = "DNS"
+
+  create_route53_records = false
+
+  tags = {
+    ManagedBy = "Terragrunt"
+  }
 }
