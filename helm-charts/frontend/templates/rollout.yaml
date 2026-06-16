@@ -28,6 +28,9 @@ spec:
     metadata:
       labels:
         {{- include "frontend.selectorLabels" . | nindent 8 }}
+        {{- if .Values.istio.injection }}
+        sidecar.istio.io/inject: "true"
+        {{- end }}
     spec:
       serviceAccountName: {{ include "frontend.fullname" . }}
       containers:

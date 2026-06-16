@@ -20,6 +20,9 @@ env:
     value: "data.csv"
   - name: AWS_REGION
     value: "us-east-1"
+istio:
+  injection: false
+
 autoscaling:
   enabled: false
   minReplicas: 2

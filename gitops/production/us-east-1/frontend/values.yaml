@@ -2,6 +2,21 @@ image:
   repository: 385551094956.dkr.ecr.us-east-1.amazonaws.com/app-frontend
   tag: v20260608-951c736
 
+istio:
+  injection: true
+  virtualService:
+    enabled: true
+    extraHosts:
+      - cloudnativeops.online
+    gateways:
+      - frontend-gw
+    stableWeight: 100
+    canaryWeight: 0
+  destinationRule:
+    enabled: true
+  gateway:
+    enabled: false
+
 autoscaling:
   enabled: true
   minReplicas: 1

@@ -1,6 +1,9 @@
 image:
   tag: 059a604-20260605
 
+istio:
+  injection: true
+
 autoscaling:
   enabled: true
   minReplicas: 1

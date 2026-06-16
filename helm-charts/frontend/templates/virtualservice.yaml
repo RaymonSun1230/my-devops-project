@@ -1,0 +1,27 @@
+{{- if .Values.istio.virtualService.enabled }}
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ include "frontend.fullname" . }}-vs
+  labels:
+    {{- include "frontend.labels" . | nindent 4 }}
+spec:
+  hosts:
+    - {{ include "frontend.fullname" . }}
+    {{- range .Values.istio.virtualService.extraHosts }}
+    - {{ . | quote }}
+    {{- end }}
+  {{- if .Values.istio.virtualService.gateways }}
+  gateways:
+    {{- toYaml .Values.istio.virtualService.gateways | nindent 4 }}
+  {{- end }}
+  http:
+    - name: {{ .Values.istio.virtualService.routeName | default "primary" }}
+      route:
+        - destination:
+            host: {{ include "frontend.fullname" . }}-stable
+          weight: {{ .Values.istio.virtualService.stableWeight | default 100 }}
+        - destination:
+            host: {{ include "frontend.fullname" . }}-canary
+          weight: {{ .Values.istio.virtualService.canaryWeight | default 0 }}
+{{- end }}

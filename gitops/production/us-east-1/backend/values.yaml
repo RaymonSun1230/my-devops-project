@@ -1,6 +1,10 @@
 image:
   repository: 385551094956.dkr.ecr.us-east-1.amazonaws.com/app-backend
   tag: v20260608-951c736
+
+istio:
+  injection: true
+
 autoscaling:
   enabled: true
   minReplicas: 1

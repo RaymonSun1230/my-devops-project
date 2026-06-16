@@ -38,6 +38,24 @@ ingress:
 env:
   - name: BACKEND_URL
     value: "http://backend-active:7001"
+istio:
+  injection: false
+  virtualService:
+    enabled: false
+    routeName: primary
+    stableWeight: 100
+    canaryWeight: 0
+    extraHosts: []
+    gateways: []
+  destinationRule:
+    enabled: false
+    tlsMode: ISTIO_MUTUAL
+  gateway:
+    enabled: false
+    hosts:
+      - "*"
+    tls: {}
+
 autoscaling:
   enabled: false
   minReplicas: 2
