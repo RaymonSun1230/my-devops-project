@@ -23,6 +23,9 @@ All AWS infrastructure is provisioned with **Terragrunt** (a thin wrapper around
 | **IAM — S3 Replication** | `terraform-aws-modules/iam/aws//modules/iam-role` (6.6.1) | Cross-region replication role (production only) |
 | **ACM** | `terraform-aws-modules/acm/aws` (5.2.0) | SSL/TLS certificates (production only) |
 | **Route53** | Custom module (`modules/route53`) | DNS records, health checks, failover routing (production only) |
+| **WAF** | `terraform-aws-modules/wafv2/aws` (~> 2.0) | Regional WebACL with managed rule groups + rate limiting (all envs); +SQLi (production) |
+| **Secrets Manager** | `terraform-aws-modules/secrets-manager/aws` (~> 2.0) | Grafana admin password, auto-generated (all envs) |
+| **IAM — External Secrets** | `terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts` (6.6.1) | IRSA role for external-secrets to read Secrets Manager |
 | **Argo CD** | Custom module (`modules/argocd`) | Helm-deployed Argo CD with EKS authentication |
 
 ---
@@ -39,6 +42,8 @@ terraform/
 │   ├── iam.hcl                 #   IAM role template (iam-role submodule)
 │   ├── iam-service-accounts.hcl #   IRSA role template (iam-role-for-service-accounts)
 │   ├── s3.hcl                  #   bucket config
+│   ├── waf.hcl                 #   WAF WebACL with managed rules + rate limiting
+│   ├── secrets-manager.hcl     #   Grafana admin password in Secrets Manager
 │   ├── route53.hcl             #   DNS config (production only)
 │   ├── acm.hcl                 #   SSL certificate config (production only)
 │   └── argocd.hcl              #   ArgoCD Helm deployment
@@ -56,13 +61,16 @@ terraform/
     │   ├── global/
     │   │   └── iam/                     # Global services (IAM)
     │   │       ├── alb-controller/terragrunt.hcl
-    │   │       └── app-backend/terragrunt.hcl
+    │   │       ├── app-backend/terragrunt.hcl
+    │   │       └── external-secrets/terragrunt.hcl
     │   └── us-east-1/
     │       ├── vpc/terragrunt.hcl      # include envcommon + override CIDRs
     │       ├── eks/terragrunt.hcl
     │       ├── ecr/app-backend/terragrunt.hcl
     │       ├── ecr/app-frontend/terragrunt.hcl
     │       ├── s3/data-source/terragrunt.hcl
+    │       ├── waf/terragrunt.hcl      # WAF WebACL (rate limit: 500)
+    │       ├── secrets-manager/terragrunt.hcl  # Grafana admin password
     │       └── argocd/terragrunt.hcl
     ├── test/
     ├── staging/
@@ -72,6 +80,7 @@ terraform/
         │   ├── iam/                     # Global IAM roles (merged across regions)
         │   │   ├── alb-controller/terragrunt.hcl    # Dual-region EKS OIDC trust
         │   │   ├── app-backend/terragrunt.hcl       # Dual-region EKS + S3
+        │   │   ├── external-secrets/terragrunt.hcl  # Dual-region OIDC for Secrets Manager
         │   │   └── s3-replication/terragrunt.hcl    # Cross-region replication role
         │   └── route53/terragrunt.hcl               # DNS records (production)
         ├── us-east-1/
@@ -81,6 +90,8 @@ terraform/
         │   ├── ecr/app-frontend/terragrunt.hcl
         │   ├── acm/terragrunt.hcl
         │   ├── s3/data-source/terragrunt.hcl
+        │   ├── waf/terragrunt.hcl      # + SQLi managed rule
+        │   ├── secrets-manager/terragrunt.hcl
         │   └── argocd/terragrunt.hcl
         └── us-east-2/
             ├── vpc/terragrunt.hcl
@@ -89,6 +100,8 @@ terraform/
             ├── ecr/app-frontend/terragrunt.hcl
             ├── acm/terragrunt.hcl
             ├── s3/data-source/terragrunt.hcl
+            ├── waf/terragrunt.hcl      # + SQLi managed rule
+            ├── secrets-manager/terragrunt.hcl
             └── argocd/terragrunt.hcl
 ```
 

@@ -25,11 +25,14 @@ Both services expose `/health` endpoints for Kubernetes liveness & readiness pro
 The platform is designed for **5 environments** across **2 AWS regions** (us-east-1, us-east-2). Every layer — from networking to application deployment — is defined as code and orchestrated through Git.
 
 ```
-User → Route53 → ALB (Internet-facing) → EKS
-                                            ├── argocd ns        (Argo CD)
-                                            ├── argo-rollouts ns (Progressive Delivery)
-                                            ├── kube-system ns   (AWS LB Controller)
-                                            └── myapp ns
+Route53 → ACM (SSL) → ALB + WAF (WebACL) → EKS
+                                            ├── istio-system ns     (Istio service mesh 1.24)
+                                            ├── argocd ns           (Argo CD)
+                                            ├── argo-rollouts ns    (Progressive Delivery)
+                                            ├── external-secrets ns (Secrets Manager bridge)
+                                            ├── monitoring ns       (Prometheus + Grafana + Loki)
+                                            ├── kube-system ns      (AWS LB Controller)
+                                            └── myapp ns           (with Istio sidecar)
                                                  ├── Frontend (Flask, Canary)
                                                  └── Backend  (Flask, Blue-Green) → S3
 ```
@@ -40,9 +43,11 @@ User → Route53 → ALB (Internet-facing) → EKS
 |-----------|---------|
 | **VPC** | Network isolation, public + private subnets, NAT Gateway |
 | **ALB** | Internet-facing ingress, managed by AWS LB Controller |
+| **WAF** | WebACL with managed rule groups, rate limiting, SQLi protection (production) |
 | **EKS** | Kubernetes 1.35, ARM64 (t4g.small), managed node groups |
 | **ECR** | Container registry for app-backend & app-frontend images |
 | **S3** | CSV data storage per environment, Terraform remote state; cross-region replication (production) |
+| **Secrets Manager** | Grafana admin password, auto-generated per environment |
 | **IAM (IRSA)** | Pod-level AWS access via OIDC — no static credentials |
 | **IAM (S3 Replication)** | Cross-region replication role (production, us-east-1 → us-east-2) |
 | **ACM** | SSL/TLS certificates for custom domain (production only) |
@@ -54,8 +59,11 @@ User → Route53 → ALB (Internet-facing) → EKS
 |-----------|-----------|---------|
 | `argocd` | Argo CD | GitOps controller, App-of-Apps root |
 | `argo-rollouts` | Argo Rollouts controller + dashboard | Progressive delivery |
+| `istio-system` | Istio (base + istiod) | Service mesh — sidecar injection, mTLS, traffic management |
+| `external-secrets` | External Secrets Operator + ClusterSecretStore | Bridge AWS Secrets Manager → K8s Secrets |
+| `monitoring` | Prometheus + Grafana + Loki + Alertmanager | Metrics collection, dashboards, log aggregation, alerting |
 | `kube-system` | AWS Load Balancer Controller | ALB/NLB provisioning from Ingress |
-| `myapp` | Backend + Frontend | Application workloads |
+| `myapp` | Backend + Frontend (with Istio sidecar) | Application workloads |
 
 ---
 

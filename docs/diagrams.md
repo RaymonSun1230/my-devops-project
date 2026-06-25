@@ -27,24 +27,32 @@ graph TB
             subgraph "EKS Cluster - demo-app-{env}"
                 subgraph "Platform Namespaces"
                     direction TB
+                    ISTIO["Istio<br/>istio-system namespace<br/>Service Mesh 1.24"]
                     ARGOCD["Argo CD<br/>argocd namespace<br/>GitOps Controller"]
                     ROLLOUTS["Argo Rollouts<br/>argo-rollouts namespace<br/>Progressive Delivery"]
                     ALBC["AWS LB Controller<br/>kube-system namespace<br/>Ingress Provisioning"]
+                    EXT_SEC["External Secrets<br/>external-secrets namespace<br/>ClusterSecretStore → Secrets Manager"]
+                end
+
+                subgraph "Monitoring Namespace"
+                    PROM["Prometheus<br/>Metrics + Alertmanager"]
+                    GRAFANA["Grafana<br/>Dashboards<br/>pw: Secrets Manager"]
+                    LOKI["Loki<br/>Log Aggregation<br/>S3-backed"]
                 end
 
                 subgraph "Application Namespace: myapp"
                     direction LR
                     
                     subgraph "Frontend Rollout (Canary)"
-                        FE_STABLE["frontend-stable<br/>Service (ClusterIP)"]
-                        FE_CANARY["frontend-canary<br/>Service (ClusterIP)"]
+                        FE_STABLE["frontend-stable<br/>Service (ClusterIP)<br/>Istio sidecar"]
+                        FE_CANARY["frontend-canary<br/>Service (ClusterIP)<br/>Istio sidecar"]
                         FE_POD_V1["Frontend v1<br/>4 replicas"]
                         FE_POD_V2["Frontend v2<br/>Canary pods"]
                     end
 
                     subgraph "Backend Rollout (Blue-Green)"
-                        BE_ACTIVE["backend-active<br/>Service (ClusterIP)"]
-                        BE_PREVIEW["backend-preview<br/>Service (ClusterIP)"]
+                        BE_ACTIVE["backend-active<br/>Service (ClusterIP)<br/>Istio sidecar"]
+                        BE_PREVIEW["backend-preview<br/>Service (ClusterIP)<br/>Istio sidecar"]
                         BE_POD_V1["Backend v1<br/>Active pods"]
                         BE_POD_V2["Backend v2<br/>Preview pods"]
                     end
@@ -58,11 +66,13 @@ graph TB
                 S3_REP["S3 Replication<br/>Cross-region sync<br/>us-east-1 → us-east-2"]
                 IAM_IRSA["IAM Roles<br/>IRSA for Service Accounts"]
                 IAM_S3REP["IAM Role<br/>S3 Replication"]
+                SM["Secrets Manager<br/>grafana-admin-{env}"]
                 R53["Route 53<br/>DNS (production)"]
                 ACM["ACM<br/>SSL/TLS (production)"]
             end
 
-            ALB["AWS ALB<br/>HTTPS :443"]
+            WAF["AWS WAF<br/>WebACL<br/>Managed rules + Rate limit"]
+            ALB["AWS ALB<br/>HTTPS :443<br/>WAF Association"]
         end
     end
 
@@ -78,7 +88,9 @@ graph TB
 
     %% User Traffic Flow
     USER -->|"https://cloudnativeops.online"| ALB
-    ALB -->|"Ingress Rule: /*"| FE_STABLE
+    ALB -.->|"Associated"| WAF
+    ALB -->|"Ingress Rule: /*"| ISTIO
+    ISTIO -->|"Sidecar proxy"| FE_STABLE
     FE_POD_V1 -->|"GET /api/data"| BE_ACTIVE
     BE_POD_V1 -->|"boto3 get_object()"| S3_DATA
     S3_DATA -.->|"Cross-region replication"| S3_REP
@@ -89,10 +101,24 @@ graph TB
     GIT -->|"Webhook / 3min Poll"| ARGOCD
     ARGOCD -->|"Sync manifests"| ROLLOUTS
     ARGOCD -->|"Sync manifests"| ALBC
+    ARGOCD -->|"Sync manifests"| ISTIO
+    ARGOCD -->|"Sync manifests"| EXT_SEC
+    ARGOCD -->|"Sync manifests"| PROM
+    ARGOCD -->|"Sync manifests"| GRAFANA
+    ARGOCD -->|"Sync manifests"| LOKI
     ROLLOUTS -->|"Manage Blue-Green"| BE_ACTIVE
     ROLLOUTS -->|"Manage Blue-Green"| BE_PREVIEW
     ROLLOUTS -->|"Manage Canary"| FE_STABLE
     ROLLOUTS -->|"Manage Canary"| FE_CANARY
+
+    %% Monitoring Flow
+    PROM -.->|"scrape (ServiceMonitor)"| FE_POD_V1
+    PROM -.->|"scrape (ServiceMonitor)"| BE_POD_V1
+    PROM -.->|"scrape (ServiceMonitor)"| ISTIO
+    GRAFANA -.->|"datasource"| PROM
+    GRAFANA -.->|"datasource"| LOKI
+    GRAFANA -.->|"admin password"| EXT_SEC
+    EXT_SEC -.->|"GetSecretValue"| SM
 
     %% CI/CD Flow
     CI_WF -->|"docker push"| ECR_BE
@@ -109,10 +135,13 @@ graph TB
     TF_WF -->|"terraform apply"| IAM_S3REP
     TF_WF -->|"terraform apply"| ACM
     TF_WF -->|"terraform apply"| R53
+    TF_WF -->|"terraform apply"| WAF
+    TF_WF -->|"terraform apply"| SM
 
     %% IRSA Trust
     IAM_IRSA -.->|"OIDC Trust"| BE_POD_V1
     IAM_IRSA -.->|"OIDC Trust"| ALBC
+    IAM_IRSA -.->|"OIDC Trust"| EXT_SEC
 
     %% Styling
     classDef aws fill:#FF9900,color:#000,stroke:#232F3E
@@ -120,12 +149,14 @@ graph TB
     classDef cicd fill:#2088FF,color:#fff,stroke:#0366D6
     classDef git fill:#333,color:#fff,stroke:#666
     classDef user fill:#28A745,color:#fff,stroke:#1E7E34
+    classDef security fill:#EF4444,color:#fff,stroke:#DC2626
 
-    class VPC,PUB_SUB,PRIV_SUB,NAT,IGW,ALB,S3_DATA,S3_REP,ECR_BE,ECR_FE,IAM_IRSA,IAM_S3REP,R53,ACM aws
-    class ARGOCD,ROLLOUTS,ALBC,FE_STABLE,FE_CANARY,BE_ACTIVE,BE_PREVIEW k8s
+    class VPC,PUB_SUB,PRIV_SUB,NAT,IGW,ALB,S3_DATA,S3_REP,ECR_BE,ECR_FE,IAM_IRSA,IAM_S3REP,R53,ACM,SM aws
+    class ISTIO,ARGOCD,ROLLOUTS,ALBC,EXT_SEC,PROM,GRAFANA,LOKI,FE_STABLE,FE_CANARY,BE_ACTIVE,BE_PREVIEW k8s
     class CI_WF,CD_WF,TF_WF cicd
     class GIT,BRANCHES git
     class USER,DEV user
+    class WAF security
 ```
 
 ---
@@ -143,6 +174,8 @@ graph TD
         IAM_HCL["iam.hcl"]
         IAM_SA_HCL["iam-service-accounts.hcl"]
         S3_HCL["s3.hcl"]
+        WAF_HCL["waf.hcl"]
+        SM_HCL["secrets-manager.hcl"]
         ACM_HCL["acm.hcl"]
         R53_HCL["route53.hcl"]
         ARGOCD_HCL["argocd.hcl"]
@@ -156,6 +189,7 @@ graph TD
     subgraph "Global Resources (per-environment)"
         IAM_ALB["IAM Role<br/>ALB Controller IRSA<br/><i>dev/global/iam/alb-controller</i>"]
         IAM_BE["IAM Role<br/>Backend S3 IRSA<br/><i>dev/global/iam/app-backend</i>"]
+        IAM_ES["IAM Role<br/>External Secrets IRSA<br/><i>dev/global/iam/external-secrets</i>"]
         IAM_S3REP["IAM Role<br/>S3 Replication<br/><i>production/global/iam/s3-replication</i>"]
         R53_RES["Route53<br/>DNS Records<br/><i>production/global/route53</i>"]
     end
@@ -166,6 +200,8 @@ graph TD
         ECR_RES["ECR Repos<br/>app-backend + app-frontend"]
         ACM_RES["ACM<br/>SSL Certificates"]
         S3_RES["S3 Bucket<br/>data-source"]
+        WAF_RES["WAF WebACL<br/>Managed rules + Rate limit"]
+        SM_RES["Secrets Manager<br/>Grafana admin password"]
         ARGOCD_RES["Argo CD<br/>Helm Release"]
     end
 
@@ -178,6 +214,8 @@ graph TD
     ROOT --> IAM_HCL
     ROOT --> IAM_SA_HCL
     ROOT --> S3_HCL
+    ROOT --> WAF_HCL
+    ROOT --> SM_HCL
     ROOT --> ACM_HCL
     ROOT --> R53_HCL
     ROOT --> ARGOCD_HCL
@@ -188,7 +226,10 @@ graph TD
 
     IAM_SA_HCL -->|"depends_on: EKS (OIDC)"| IAM_ALB
     IAM_SA_HCL -->|"depends_on: EKS (OIDC)"| IAM_BE
+    IAM_SA_HCL -->|"depends_on: EKS (OIDC)"| IAM_ES
     IAM_HCL --> IAM_S3REP
+    WAF_HCL --> WAF_RES
+    SM_HCL --> SM_RES
     ACM_HCL --> ACM_RES
     R53_HCL -->|"depends_on: ACM"| R53_RES
     S3_HCL -->|"prod: depends_on IAM S3 Rep"| S3_RES
@@ -197,6 +238,7 @@ graph TD
     VPC_RES -.-> EKS_RES
     EKS_RES -.-> IAM_ALB
     EKS_RES -.-> IAM_BE
+    EKS_RES -.-> IAM_ES
     EKS_RES -.-> ARGOCD_RES
     IAM_S3REP -.-> S3_RES
     ACM_RES -.-> R53_RES
@@ -207,9 +249,9 @@ graph TD
     classDef regional fill:#0D6EFD,color:#fff
 
     class ENV,REGION input
-    class VPC_HCL,EKS_HCL,ECR_HCL,IAM_HCL,IAM_SA_HCL,S3_HCL,ACM_HCL,R53_HCL,ARGOCD_HCL common
-    class IAM_ALB,IAM_BE,IAM_S3REP,R53_RES global
-    class VPC_RES,EKS_RES,ECR_RES,ACM_RES,S3_RES,ARGOCD_RES regional
+    class VPC_HCL,EKS_HCL,ECR_HCL,IAM_HCL,IAM_SA_HCL,S3_HCL,WAF_HCL,SM_HCL,ACM_HCL,R53_HCL,ARGOCD_HCL common
+    class IAM_ALB,IAM_BE,IAM_ES,IAM_S3REP,R53_RES global
+    class VPC_RES,EKS_RES,ECR_RES,ACM_RES,S3_RES,WAF_RES,SM_RES,ARGOCD_RES regional
 ```
 
 ---
@@ -220,19 +262,33 @@ graph TD
 graph TD
     ROOT["Root Application<br/>gitops/dev/root.yaml<br/>directory.recurse: true"]
 
+    ROOT -->|"sync-wave: -2"| ISTIO_APP["istio<br/>Chart: istio/base + istiod (1.24.2)<br/>Namespace: istio-system"]
     ROOT -->|"sync-wave: -1"| ROLLOUTS_APP["argo-rollouts<br/>Chart: argo-rollouts (2.37.0)<br/>Namespace: argo-rollouts"]
     ROOT -->|"sync-wave: -1"| ALB_APP["alb-controller<br/>Chart: aws-load-balancer-controller (1.7.2)<br/>Namespace: kube-system"]
+    ROOT -->|"sync-wave: -1"| ES_APP["external-secrets<br/>Chart: external-secrets (0.15.0)<br/>Namespace: external-secrets"]
+    ROOT -->|"sync-wave: -1"| MON_APP["monitoring<br/>Chart: kube-prometheus-stack (67.0.0)<br/>Namespace: monitoring"]
+    ROOT -->|"sync-wave: 0"| LOKI_APP["loki<br/>Chart: loki (6.28.0)<br/>Namespace: monitoring"]
+    ROOT -->|"sync-wave: 0"| GF_ES_APP["grafana-external-secret<br/>Path: gitops/.../resources/<br/>Namespace: monitoring"]
 
     ROOT -->|"sync-wave: 1"| BE_APP["backend<br/>Chart: helm-charts/backend<br/>Namespace: myapp<br/>Values: gitops/dev/backend/values.yaml"]
     ROOT -->|"sync-wave: 1"| FE_APP["frontend<br/>Chart: helm-charts/frontend<br/>Namespace: myapp<br/>Values: gitops/dev/frontend/values.yaml"]
 
+    ISTIO_APP --> ISTIO_KIND["Kubernetes Resources<br/>├─ Istio base CRDs<br/>├─ Istiod deployment<br/>└─ Sidecar injector"]
     ROLLOUTS_APP --> ROLLOUT_KIND["Kubernetes Resources<br/>├─ Deployment (controller)<br/>├─ Service (dashboard)<br/>└─ CRDs"]
-
     ALB_APP --> ALB_KIND["Kubernetes Resources<br/>├─ Deployment<br/>├─ ServiceAccount (IRSA)<br/>└─ ClusterRole"]
+    ES_APP --> ES_KIND["Kubernetes Resources<br/>├─ External Secrets operator<br/>├─ ClusterSecretStore (AWS SM)<br/>└─ ServiceAccount (IRSA)"]
+    MON_APP --> MON_KIND["Kubernetes Resources<br/>├─ Prometheus<br/>├─ Grafana<br/>├─ Alertmanager<br/>├─ kube-state-metrics<br/>└─ node-exporter"]
+    LOKI_APP --> LOKI_KIND["Kubernetes Resources<br/>├─ Loki (SingleBinary)<br/>├─ S3 bucket backend<br/>└─ ServiceMonitor"]
+    GF_ES_APP --> GF_ES_KIND["Kubernetes Resources<br/>├─ ExternalSecret → grafana-admin-secret<br/>└─ SecretStore → aws-secrets-manager"]
 
-    BE_APP --> BE_KIND["Kubernetes Resources<br/>├─ Rollout (Blue-Green)<br/>├─ Service (active)<br/>├─ Service (preview)<br/>├─ ServiceAccount (IRSA)<br/>└─ HPA"]
+    BE_APP --> BE_KIND["Kubernetes Resources<br/>├─ Rollout (Blue-Green)<br/>├─ Service (active)<br/>├─ Service (preview)<br/>├─ ServiceAccount (IRSA)<br/>├─ HPA<br/>└─ Istio sidecar"]
 
-    FE_APP --> FE_KIND["Kubernetes Resources<br/>├─ Rollout (Canary)<br/>├─ Service (stable)<br/>├─ Service (canary)<br/>├─ Ingress (ALB)<br/>├─ ServiceAccount<br/>└─ HPA"]
+    FE_APP --> FE_KIND["Kubernetes Resources<br/>├─ Rollout (Canary)<br/>├─ Service (stable)<br/>├─ Service (canary)<br/>├─ Ingress (ALB → Istio)<br/>├─ ServiceAccount<br/>├─ HPA<br/>└─ Istio sidecar"]
+
+    MON_KIND -.->|"scrape"| FE_KIND
+    MON_KIND -.->|"scrape"| BE_KIND
+    MON_KIND -.->|"scrape"| ISTIO_KIND
+    GF_ES_KIND -.->|"grafana-admin"| MON_KIND
 
     classDef root fill:#D63384,color:#fff
     classDef platform fill:#6F42C1,color:#fff
@@ -240,9 +296,9 @@ graph TD
     classDef k8s fill:#198754,color:#fff
 
     class ROOT root
-    class ROLLOUTS_APP,ALB_APP platform
+    class ISTIO_APP,ROLLOUTS_APP,ALB_APP,ES_APP,MON_APP,LOKI_APP,GF_ES_APP platform
     class BE_APP,FE_APP app
-    class ROLLOUT_KIND,ALB_KIND,BE_KIND,FE_KIND k8s
+    class ISTIO_KIND,ROLLOUT_KIND,ALB_KIND,ES_KIND,MON_KIND,LOKI_KIND,GF_ES_KIND,BE_KIND,FE_KIND k8s
 ```
 
 ---
