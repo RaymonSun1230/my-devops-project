@@ -50,7 +50,7 @@ graph TB
 
     subgraph "Global Services (per-environment)"
         IAM_S3REP[IAM Role<br/>S3 Replication<br/>Cross-region sync]
-        SM[Secrets Manager<br/>grafana-admin-{env}]
+        SM["Secrets Manager<br/>grafana-admin-{env}"]
     end
 
     subgraph "Region: us-east-1 (Primary / Active)"
