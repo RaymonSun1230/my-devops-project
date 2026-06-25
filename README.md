@@ -58,9 +58,9 @@ graph TB
         ALB1[AWS ALB<br/>HTTPS :443<br/>WAF Association]
         ECR1[ECR<br/>app-backend<br/>app-frontend]
         subgraph "EKS Cluster - demo-app-production"
-            ISTIO1[Istio<br/>istio-system ns<br/>Service Mesh 1.24]
+            ISTIO1[Istio<br/>istio-system ns<br/>Sidecar injection + mTLS]
             ARGO1[Argo CD<br/>argocd ns]
-            ROLL1[Argo Rollouts<br/>argo-rollouts ns]
+            ROLL1[Argo Rollouts<br/>argo-rollouts ns<br/>Canary + Blue-Green controller]
             ALBC1[AWS LB Controller<br/>kube-system ns]
             ES1[External Secrets<br/>external-secrets ns<br/>ClusterSecretStore]
             subgraph "monitoring ns"
@@ -69,8 +69,8 @@ graph TB
                 LOKI1[Loki<br/>Log Aggregation]
             end
             subgraph "myapp ns"
-                FE1[Frontend<br/>Canary Rollout<br/>Istio sidecar]
-                BE1[Backend<br/>Blue-Green Rollout<br/>Istio sidecar]
+                FE1["Frontend<br/>Argo Rollout (Canary)<br/>replica-weight based"]
+                BE1["Backend<br/>Argo Rollout (Blue-Green)<br/>service selector swap"]
             end
         end
         S31[S3<br/>CSV Data<br/>Terraform State]
@@ -82,9 +82,9 @@ graph TB
         ALB2[AWS ALB<br/>HTTPS :443<br/>WAF Association]
         ECR2[ECR<br/>app-backend<br/>app-frontend]
         subgraph "EKS Cluster - demo-app-production"
-            ISTIO2[Istio<br/>istio-system ns<br/>Service Mesh 1.24]
+            ISTIO2[Istio<br/>istio-system ns<br/>Sidecar injection + mTLS]
             ARGO2[Argo CD<br/>argocd ns]
-            ROLL2[Argo Rollouts<br/>argo-rollouts ns]
+            ROLL2[Argo Rollouts<br/>argo-rollouts ns<br/>Canary + Blue-Green controller]
             ALBC2[AWS LB Controller<br/>kube-system ns]
             ES2[External Secrets<br/>external-secrets ns<br/>ClusterSecretStore]
             subgraph "monitoring ns"
@@ -93,8 +93,8 @@ graph TB
                 LOKI2[Loki<br/>Log Aggregation]
             end
             subgraph "myapp ns"
-                FE2[Frontend<br/>Canary Rollout<br/>Istio sidecar]
-                BE2[Backend<br/>Blue-Green Rollout<br/>Istio sidecar]
+                FE2["Frontend<br/>Argo Rollout (Canary)<br/>replica-weight based"]
+                BE2["Backend<br/>Argo Rollout (Blue-Green)<br/>service selector swap"]
             end
         end
         S32[S3<br/>CSV Data<br/>Terraform State]
@@ -112,15 +112,23 @@ graph TB
     ALB1 -.->|"Associated"| WAF1
     ALB2 -.->|"Associated"| WAF2
 
-    ALB1 -->|Ingress| ISTIO1
-    ISTIO1 --> FE1
+    ALB1 -->|"ALB Ingress<br/>→ frontend-stable"| FE1
     FE1 -->|HTTP /api/data| BE1
     BE1 -->|boto3| S31
 
-    ALB2 -->|Ingress| ISTIO2
-    ISTIO2 --> FE2
+    ALB2 -->|"ALB Ingress<br/>→ frontend-stable"| FE2
     FE2 -->|HTTP /api/data| BE2
     BE2 -->|boto3| S32
+
+    ROLL1 -.->|"controls canary"| FE1
+    ROLL1 -.->|"controls blue-green"| BE1
+    ROLL2 -.->|"controls canary"| FE2
+    ROLL2 -.->|"controls blue-green"| BE2
+
+    ISTIO1 -.->|"sidecar<br/>mTLS + metrics"| FE1
+    ISTIO1 -.->|"sidecar<br/>mTLS + metrics"| BE1
+    ISTIO2 -.->|"sidecar<br/>mTLS + metrics"| FE2
+    ISTIO2 -.->|"sidecar<br/>mTLS + metrics"| BE2
 
     PROM1 -.->|"scrape"| FE1
     PROM1 -.->|"scrape"| BE1

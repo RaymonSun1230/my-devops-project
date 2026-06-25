@@ -27,9 +27,9 @@ graph TB
             subgraph "EKS Cluster - demo-app-{env}"
                 subgraph "Platform Namespaces"
                     direction TB
-                    ISTIO["Istio<br/>istio-system namespace<br/>Service Mesh 1.24"]
+                    ISTIO["Istio<br/>istio-system namespace<br/>Sidecar injection + mTLS"]
                     ARGOCD["Argo CD<br/>argocd namespace<br/>GitOps Controller"]
-                    ROLLOUTS["Argo Rollouts<br/>argo-rollouts namespace<br/>Progressive Delivery"]
+                    ROLLOUTS["Argo Rollouts<br/>argo-rollouts namespace<br/>Canary + Blue-Green controller"]
                     ALBC["AWS LB Controller<br/>kube-system namespace<br/>Ingress Provisioning"]
                     EXT_SEC["External Secrets<br/>external-secrets namespace<br/>ClusterSecretStore → Secrets Manager"]
                 end
@@ -44,17 +44,17 @@ graph TB
                     direction LR
                     
                     subgraph "Frontend Rollout (Canary)"
-                        FE_STABLE["frontend-stable<br/>Service (ClusterIP)<br/>Istio sidecar"]
-                        FE_CANARY["frontend-canary<br/>Service (ClusterIP)<br/>Istio sidecar"]
-                        FE_POD_V1["Frontend v1<br/>4 replicas"]
-                        FE_POD_V2["Frontend v2<br/>Canary pods"]
+                        FE_STABLE["frontend-stable<br/>Service (ClusterIP)"]
+                        FE_CANARY["frontend-canary<br/>Service (ClusterIP)"]
+                        FE_POD_V1["Frontend v1<br/>4 replicas<br/>+ Istio sidecar"]
+                        FE_POD_V2["Frontend v2<br/>Canary pods<br/>+ Istio sidecar"]
                     end
 
                     subgraph "Backend Rollout (Blue-Green)"
-                        BE_ACTIVE["backend-active<br/>Service (ClusterIP)<br/>Istio sidecar"]
-                        BE_PREVIEW["backend-preview<br/>Service (ClusterIP)<br/>Istio sidecar"]
-                        BE_POD_V1["Backend v1<br/>Active pods"]
-                        BE_POD_V2["Backend v2<br/>Preview pods"]
+                        BE_ACTIVE["backend-active<br/>Service (ClusterIP)"]
+                        BE_PREVIEW["backend-preview<br/>Service (ClusterIP)"]
+                        BE_POD_V1["Backend v1<br/>Active pods<br/>+ Istio sidecar"]
+                        BE_POD_V2["Backend v2<br/>Preview pods<br/>+ Istio sidecar"]
                     end
                 end
             end
@@ -89,8 +89,7 @@ graph TB
     %% User Traffic Flow
     USER -->|"https://cloudnativeops.online"| ALB
     ALB -.->|"Associated"| WAF
-    ALB -->|"Ingress Rule: /*"| ISTIO
-    ISTIO -->|"Sidecar proxy"| FE_STABLE
+    ALB -->|"ALB Ingress<br/>→ frontend-stable"| FE_STABLE
     FE_POD_V1 -->|"GET /api/data"| BE_ACTIVE
     BE_POD_V1 -->|"boto3 get_object()"| S3_DATA
     S3_DATA -.->|"Cross-region replication"| S3_REP
@@ -106,10 +105,18 @@ graph TB
     ARGOCD -->|"Sync manifests"| PROM
     ARGOCD -->|"Sync manifests"| GRAFANA
     ARGOCD -->|"Sync manifests"| LOKI
-    ROLLOUTS -->|"Manage Blue-Green"| BE_ACTIVE
-    ROLLOUTS -->|"Manage Blue-Green"| BE_PREVIEW
-    ROLLOUTS -->|"Manage Canary"| FE_STABLE
-    ROLLOUTS -->|"Manage Canary"| FE_CANARY
+
+    %% Rollout Control Flow
+    ROLLOUTS -.->|"controls canary<br/>(replica-weight)"| FE_STABLE
+    ROLLOUTS -.->|"controls canary"| FE_CANARY
+    ROLLOUTS -.->|"controls blue-green<br/>(selector swap)"| BE_ACTIVE
+    ROLLOUTS -.->|"controls blue-green"| BE_PREVIEW
+
+    %% Istio Sidecar Flow
+    ISTIO -.->|"sidecar mTLS + metrics"| FE_POD_V1
+    ISTIO -.->|"sidecar mTLS + metrics"| FE_POD_V2
+    ISTIO -.->|"sidecar mTLS + metrics"| BE_POD_V1
+    ISTIO -.->|"sidecar mTLS + metrics"| BE_POD_V2
 
     %% Monitoring Flow
     PROM -.->|"scrape (ServiceMonitor)"| FE_POD_V1
