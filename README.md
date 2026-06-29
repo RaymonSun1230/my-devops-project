@@ -9,7 +9,6 @@
 [![Service Mesh](https://img.shields.io/badge/Mesh-Istio-466BB0?logo=istio)](https://istio.io)
 [![Monitoring](https://img.shields.io/badge/Monitoring-Prometheus-E6522C?logo=prometheus)](https://prometheus.io)
 [![Grafana](https://img.shields.io/badge/Dashboards-Grafana-F46800?logo=grafana)](https://grafana.com)
-[![WAF](https://img.shields.io/badge/WAF-AWS_WAF-FF9900?logo=amazonaws)](https://aws.amazon.com/waf/)
 
 An **enterprise-style**, multi-environment DevOps platform on **AWS EKS** — demonstrating **GitOps** with Argo CD, **progressive delivery** via Argo Rollouts (Blue-Green + Canary), and full **Infrastructure as Code** with Terragrunt/Terraform.
 

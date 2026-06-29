@@ -37,12 +37,14 @@ on:
           - eks
           - iam/alb-controller
           - iam/app-backend
+          - iam/external-secrets
           - iam/s3-replication
           - s3/data-source
           - ecr/app-frontend
           - ecr/app-backend
           - acm
           - route53
+          - kms
           - waf
           - argocd
         default: all
