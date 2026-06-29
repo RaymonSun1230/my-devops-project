@@ -15,6 +15,10 @@ dependency "iam_s3_replication" {
   config_path = "../../../global/iam/s3-replication"
 }
 
+dependency "kms" {
+  config_path = "../kms"
+}
+
 inputs = merge(
   include.envcommon.inputs,
   {
@@ -22,6 +26,15 @@ inputs = merge(
 
     versioning = {
       status = true
+    }
+
+    server_side_encryption_configuration = {
+      rule = {
+        apply_server_side_encryption_by_default = {
+          sse_algorithm     = "aws:kms"
+          kms_master_key_id = dependency.kms.outputs.key_arn
+        }
+      }
     }
 
     replication_configuration = {

@@ -1,5 +1,5 @@
 terraform {
-  source = "tfr://registry.terraform.io/terraform-aws-modules/s3-bucket/aws?version=4.6.0"
+  source = "tfr://registry.terraform.io/terraform-aws-modules/kms/aws?version=~> 3.0"
 }
 
 locals {
@@ -12,18 +12,12 @@ locals {
 }
 
 inputs = {
-  force_destroy = false
+  description = "KMS key for ${local.environment} environment in ${local.aws_region}"
 
-  control_object_ownership = true
-  object_ownership         = "BucketOwnerEnforced"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
 
-  server_side_encryption_configuration = {
-    rule = {
-      apply_server_side_encryption_by_default = {
-        sse_algorithm = "AES256"
-      }
-    }
-  }
+  aliases = ["s3-${local.environment}-${local.aws_region}"]
 
   tags = {
     Environment = local.environment

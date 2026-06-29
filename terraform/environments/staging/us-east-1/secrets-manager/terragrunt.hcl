@@ -7,6 +7,14 @@ include "envcommon" {
   expose = true
 }
 
-inputs = {
-  recovery_window_in_days = 7
+dependency "kms" {
+  config_path = "../kms"
 }
+
+inputs = merge(
+  include.envcommon.inputs,
+  {
+    recovery_window_in_days = 7
+    kms_key_id              = dependency.kms.outputs.key_arn
+  }
+)

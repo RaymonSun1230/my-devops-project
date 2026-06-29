@@ -182,6 +182,8 @@ graph TD
         IAM_SA_HCL["iam-service-accounts.hcl"]
         S3_HCL["s3.hcl"]
         WAF_HCL["waf.hcl"]
+        WAF_HCL["waf.hcl"]
+        KMS_HCL["kms.hcl"]
         SM_HCL["secrets-manager.hcl"]
         ACM_HCL["acm.hcl"]
         R53_HCL["route53.hcl"]
@@ -206,9 +208,10 @@ graph TD
         EKS_RES["EKS Cluster<br/>Node Groups + Addons"]
         ECR_RES["ECR Repos<br/>app-backend + app-frontend"]
         ACM_RES["ACM<br/>SSL Certificates"]
-        S3_RES["S3 Bucket<br/>data-source"]
+        S3_RES["S3 Bucket<br/>data-source<br/>SSE-KMS encrypted"]
+        KMS_RES["KMS Key<br/>alias/s3-{env}-{region}<br/>S3 + ECR + Secrets Manager"]
         WAF_RES["WAF WebACL<br/>Managed rules + Rate limit"]
-        SM_RES["Secrets Manager<br/>Grafana admin password"]
+        SM_RES["Secrets Manager<br/>Grafana admin password<br/>KMS encrypted"]
         ARGOCD_RES["Argo CD<br/>Helm Release"]
     end
 
@@ -222,6 +225,7 @@ graph TD
     ROOT --> IAM_SA_HCL
     ROOT --> S3_HCL
     ROOT --> WAF_HCL
+    ROOT --> KMS_HCL
     ROOT --> SM_HCL
     ROOT --> ACM_HCL
     ROOT --> R53_HCL
@@ -230,11 +234,15 @@ graph TD
     VPC_HCL --> VPC_RES
     EKS_HCL -->|"depends_on: VPC"| EKS_RES
     ECR_HCL --> ECR_RES
+    KMS_HCL --> KMS_RES
 
     IAM_SA_HCL -->|"depends_on: EKS (OIDC)"| IAM_ALB
     IAM_SA_HCL -->|"depends_on: EKS (OIDC)"| IAM_BE
     IAM_SA_HCL -->|"depends_on: EKS (OIDC)"| IAM_ES
     IAM_HCL --> IAM_S3REP
+    KMS_RES -.->|"encrypts"| S3_RES
+    KMS_RES -.->|"encrypts"| ECR_RES
+    KMS_RES -.->|"encrypts"| SM_RES
     WAF_HCL --> WAF_RES
     SM_HCL --> SM_RES
     ACM_HCL --> ACM_RES
@@ -254,11 +262,13 @@ graph TD
     classDef common fill:#D63384,color:#fff
     classDef global fill:#0DCAF0,color:#000
     classDef regional fill:#0D6EFD,color:#fff
+    classDef security fill:#EF4444,color:#fff
 
     class ENV,REGION input
-    class VPC_HCL,EKS_HCL,ECR_HCL,IAM_HCL,IAM_SA_HCL,S3_HCL,WAF_HCL,SM_HCL,ACM_HCL,R53_HCL,ARGOCD_HCL common
+    class VPC_HCL,EKS_HCL,ECR_HCL,IAM_HCL,IAM_SA_HCL,S3_HCL,WAF_HCL,KMS_HCL,SM_HCL,ACM_HCL,R53_HCL,ARGOCD_HCL common
     class IAM_ALB,IAM_BE,IAM_ES,IAM_S3REP,R53_RES global
     class VPC_RES,EKS_RES,ECR_RES,ACM_RES,S3_RES,WAF_RES,SM_RES,ARGOCD_RES regional
+    class KMS_RES security
 ```
 
 ---

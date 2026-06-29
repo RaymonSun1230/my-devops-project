@@ -7,9 +7,14 @@ include "envcommon" {
   expose = true
 }
 
+dependency "kms" {
+  config_path = "../kms"
+}
+
 inputs = merge(
   include.envcommon.inputs,
   {
     repository_name = "app-backend"
+    kms_key_arn     = dependency.kms.outputs.key_arn
   }
 )
